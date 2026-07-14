@@ -5,7 +5,7 @@ import httpx
 import logging
 import asyncio
 import subprocess
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.drive_manager import DriveManager
 
@@ -37,19 +37,23 @@ def get_video_duration(video_path: str) -> float:
         logger.error(f"Erro ao obter duração com ffprobe: {e}")
         return 0.0
 
-def truncate_video(input_path: str, output_path: str, seconds: float = 175.0) -> bool:
-    """Corta o vídeo para uma duração máxima em segundos de forma ultrarrápida (sem re-codificar)."""
+def accelerate_video(input_path: str, output_path: str, factor: float) -> bool:
+    """Aumenta a velocidade do vídeo e do áudio (time stretch) usando ffmpeg."""
     if not os.path.exists(input_path):
         return False
+    # Filtro de video e áudio
     cmd = [
-        'ffmpeg', '-y', '-i', input_path, '-t', str(seconds),
-        '-c:v', 'copy', '-c:a', 'copy', output_path
+        'ffmpeg', '-y', '-i', input_path,
+        '-filter:v', f"setpts=PTS/{factor}",
+        '-filter:a', f"atempo={factor}",
+        '-crf', '18', '-preset', 'superfast', output_path
     ]
     try:
+        logger.info(f"Acelerando vídeo com fator {factor:.2f}...")
         subprocess.run(cmd, capture_output=True, check=True)
         return os.path.exists(output_path) and os.path.getsize(output_path) > 0
     except Exception as e:
-        logger.error(f"Erro ao cortar vídeo com ffmpeg: {e}")
+        logger.error(f"Erro ao acelerar vídeo com ffmpeg: {e}")
         return False
 
 def extract_audio(video_path: str, audio_path: str) -> bool:
@@ -73,7 +77,7 @@ async def run_scrapper_download(
     url: str,
     user_uploads: dict
 ) -> bool:
-    """Baixa o vídeo da API do Evil0ctal, extrai o áudio, e salva no Drive e localmente."""
+    """Fase 1: Inicia download da API e verifica a duração para interagir com o usuário."""
     status_msg = await context.bot.send_message(
         chat_id=chat_id,
         text=f"📥 **Iniciando Download do Drama...**\n"
@@ -144,31 +148,85 @@ async def run_scrapper_download(
         await status_msg.edit_text("❌ Falha no download do vídeo da API.", parse_mode="Markdown")
         return False
 
-    await status_msg.edit_text("✂️ **Vídeo baixado!** Analisando duração e processando mídia...", parse_mode="Markdown")
-    
-    # Lógica de truncamento para Shorts (se o vídeo estiver entre 3 e 4 minutos, ajusta para 2.55 min/175s)
+    # Analisa a duração do vídeo
     loop = asyncio.get_running_loop()
     duration = await loop.run_in_executor(None, get_video_duration, temp_video_path)
+
+    if duration > 180.0:
+        # Vídeo maior que 3 min: Salva o estado da sessão e pergunta ao usuário
+        context.user_data["pending_scrapper_download"] = {
+            "duration": duration,
+            "temp_video_path": temp_video_path,
+            "temp_audio_path": temp_audio_path,
+            "uploads_dir": uploads_dir,
+            "status_msg_id": status_msg.message_id
+        }
+        
+        buttons = [
+            [
+                InlineKeyboardButton("⚡ Ajustar Velocidade", callback_data="scrapper_speed:yes"),
+                InlineKeyboardButton("📹 Manter Original", callback_data="scrapper_speed:no")
+            ]
+        ]
+        
+        await status_msg.edit_text(
+            f"⚠️ **O vídeo baixado tem {duration:.1f}s (mais de 3 minutos).**\n"
+            f"Deseja ajustar a velocidade (time stretch) para caber em 3 minutos mantendo a qualidade original?",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode="Markdown"
+        )
+        return True
+    else:
+        # Vídeo menor/igual a 3 min: Finaliza direto
+        return await finalize_scrapper_download(
+            chat_id=chat_id,
+            context=context,
+            status_msg=status_msg,
+            temp_video_path=temp_video_path,
+            temp_audio_path=temp_audio_path,
+            uploads_dir=uploads_dir,
+            duration=duration,
+            adjust_speed=False,
+            user_uploads=user_uploads
+        )
+
+async def finalize_scrapper_download(
+    chat_id: str,
+    context: ContextTypes.DEFAULT_TYPE,
+    status_msg,
+    temp_video_path: str,
+    temp_audio_path: str,
+    uploads_dir: str,
+    duration: float,
+    adjust_speed: bool,
+    user_uploads: dict
+) -> bool:
+    """Fase 2: Processa a velocidade (se aplicável), extrai áudio, e faz upload para o Drive."""
+    loop = asyncio.get_running_loop()
     
-    if 180.0 < duration <= 240.0:
-        await status_msg.edit_text(f"✂️ **Duração do vídeo:** {duration:.1f}s (> 3min). Truncando para 175s (2.5min)...", parse_mode="Markdown")
-        truncated_path = os.path.join(uploads_dir, "video_original_truncated.mp4")
-        if os.path.exists(truncated_path):
-            try: os.remove(truncated_path)
+    if adjust_speed and duration > 180.0:
+        # Calcula fator de aceleração necessário para atingir 175s
+        factor = duration / 175.0
+        await status_msg.edit_text(f"⚡ **Ajustando velocidade do vídeo...** (Acelerando em {factor:.2f}x com FFmpeg)...", parse_mode="Markdown")
+        
+        speed_video_path = os.path.join(uploads_dir, "video_original_speed.mp4")
+        if os.path.exists(speed_video_path):
+            try: os.remove(speed_video_path)
             except: pass
             
-        truncate_success = await loop.run_in_executor(None, truncate_video, temp_video_path, truncated_path, 175.0)
-        if truncate_success:
+        success = await loop.run_in_executor(None, accelerate_video, temp_video_path, speed_video_path, factor)
+        if success:
             try:
                 os.remove(temp_video_path)
-                os.rename(truncated_path, temp_video_path)
-                await status_msg.edit_text(f"✂️ **Vídeo ajustado!** Extraindo faixa de áudio em MP3 via FFmpeg...", parse_mode="Markdown")
+                os.rename(speed_video_path, temp_video_path)
+                logger.info("Vídeo acelerado com sucesso!")
             except Exception as e:
-                logger.error(f"Erro ao substituir vídeo truncado: {e}")
+                logger.error(f"Erro ao substituir vídeo acelerado: {e}")
         else:
-            await status_msg.edit_text(f"⚠️ Falha no truncamento. Usando vídeo original.", parse_mode="Markdown")
-            
-    # Extrai o áudio
+            await status_msg.edit_text("⚠️ Falha ao acelerar vídeo. Usando vídeo original.", parse_mode="Markdown")
+
+    await status_msg.edit_text("✂️ **Vídeo pronto!** Extraindo faixa de áudio em MP3 via FFmpeg...", parse_mode="Markdown")
+    
     audio_success = await loop.run_in_executor(None, extract_audio, temp_video_path, temp_audio_path)
     if not audio_success:
         await status_msg.edit_text("❌ Falha ao extrair áudio com FFmpeg.", parse_mode="Markdown")
@@ -191,15 +249,18 @@ async def run_scrapper_download(
             await status_msg.edit_text("❌ Erro ao enviar os arquivos para o Google Drive.", parse_mode="Markdown")
             return False
 
-        # Registra os uploads na sessão em memória do bot para comandos locais
+        # Registra os uploads na sessão do usuário
         user_uploads[chat_id] = {
             "video": temp_video_path,
             "audio": temp_audio_path
         }
 
+        final_duration = get_video_duration(temp_video_path)
+        speed_info = f" (Acelerado de {duration:.1f}s)" if adjust_speed else ""
+        
         success_text = (
-            f"✅ **Drama Baixado e Configurado com Sucesso!**\n\n"
-            f"🎬 **Duração:** {get_video_duration(temp_video_path):.1f}s\n"
+            f"✅ **Drama Configurado com Sucesso!**\n\n"
+            f"🎬 **Duração Final:** {final_duration:.1f}s{speed_info}\n"
             f"📂 **Arquivos no Drive:**\n"
             f"├ 🎥 `video_original.mp4` em `DRAMA/PIPELINE/ATIVO/`\n"
             f"└ 🎵 `drama_audio.mp3` em `DRAMA/AUDIO_DUB/INPUT/`\n\n"

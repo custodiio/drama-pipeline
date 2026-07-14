@@ -32,7 +32,7 @@ from bot.database import (
     get_latest_project
 )
 from bot.pipeline_controller import PipelineController
-from bot.scrapper_downloader import run_scrapper_download
+from bot.scrapper_downloader import run_scrapper_download, finalize_scrapper_download
 
 load_dotenv()
 
@@ -794,6 +794,27 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             else:
                 controller.disparar_render(pid)
                 await query.message.reply_text("🎬 Renderização disparada!")
+
+    elif data.startswith("scrapper_speed:"):
+        adjust_speed = (data.split(":")[-1] == "yes")
+        pending = ctx.user_data.pop("pending_scrapper_download", None)
+        if not pending:
+            await query.answer("Sessão de download expirada ou não encontrada.", show_alert=True)
+            return
+            
+        asyncio.create_task(
+            finalize_scrapper_download(
+                chat_id=chat_id,
+                context=ctx,
+                status_msg=query.message,
+                temp_video_path=pending["temp_video_path"],
+                temp_audio_path=pending["temp_audio_path"],
+                uploads_dir=pending["uploads_dir"],
+                duration=pending["duration"],
+                adjust_speed=adjust_speed,
+                user_uploads=user_uploads
+            )
+        )
 
     # -------- DISPARO MANUAL --------
     elif data == "trigger_menu":
