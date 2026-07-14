@@ -24,7 +24,7 @@ from bot.telegram_bot import main as run_bot
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  Agente de Postagem - AnimeRecap Pipeline")
+    print("  Agente de Postagem - DramaRecap Pipeline")
     print("=" * 60)
 
     # Inicializar banco de dados
