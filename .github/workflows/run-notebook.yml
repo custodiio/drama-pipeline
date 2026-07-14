@@ -1,0 +1,119 @@
+name: Run Kaggle Notebook
+
+on:
+  repository_dispatch:
+    types:
+      - run-wm-pt1
+      - run-wm-pt2
+      - run-wm-pt3
+      - run-wm-pt4
+      - run-wm-pt5
+      - run-enhancer-pt1
+      - run-enhancer-pt2
+      - run-enhancer-pt3
+      - run-enhancer-pt4
+      - run-enhancer-pt5
+      - run-omni
+      - run-render-pt1
+      - run-render-pt2
+      - run-render-pt3
+      - run-render-pt4
+      - run-render-pt5
+      - run-merge
+
+jobs:
+  run-notebook:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Kaggle CLI
+        run: pip install kaggle
+
+      - name: Configure Kaggle Account
+        env:
+          KAGGLE_USERNAME_1: ${{ secrets.KAGGLE_USERNAME_1 }}
+          KAGGLE_KEY_1: ${{ secrets.KAGGLE_KEY_1 }}
+          KAGGLE_USERNAME_2: ${{ secrets.KAGGLE_USERNAME_2 }}
+          KAGGLE_KEY_2: ${{ secrets.KAGGLE_KEY_2 }}
+          KAGGLE_USERNAME_3: ${{ secrets.KAGGLE_USERNAME_3 }}
+          KAGGLE_KEY_3: ${{ secrets.KAGGLE_KEY_3 }}
+          KAGGLE_USERNAME_4: ${{ secrets.KAGGLE_USERNAME_4 }}
+          KAGGLE_KEY_4: ${{ secrets.KAGGLE_KEY_4 }}
+          KAGGLE_USERNAME_5: ${{ secrets.KAGGLE_USERNAME_5 }}
+          KAGGLE_KEY_5: ${{ secrets.KAGGLE_KEY_5 }}
+          KAGGLE_USERNAME_6: ${{ secrets.KAGGLE_USERNAME_6 }}
+          KAGGLE_KEY_6: ${{ secrets.KAGGLE_KEY_6 }}
+        run: |
+          ACCOUNT_NUM=${{ github.event.client_payload.kaggle_account }}
+          echo "🔑 Usando conta Kaggle #${ACCOUNT_NUM}"
+
+          USERNAME_VAR="KAGGLE_USERNAME_${ACCOUNT_NUM}"
+          KEY_VAR="KAGGLE_KEY_${ACCOUNT_NUM}"
+
+          mkdir -p ~/.kaggle
+          echo "{\"username\":\"${!USERNAME_VAR}\",\"key\":\"${!KEY_VAR}\"}" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+
+          # Salvar para reutilizar no próximo step
+          echo "KAGGLE_USER=${!USERNAME_VAR}" >> $GITHUB_ENV
+
+      - name: Inject Secrets & Push Notebook
+        env:
+          NOTEBOOK: ${{ github.event.client_payload.notebook }}
+          PROJECT_ID: ${{ github.event.client_payload.project_id }}
+          TASK_KEY: ${{ github.event.client_payload.task }}
+          ACCOUNT_NUM: ${{ github.event.client_payload.kaggle_account }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DRIVE_REFRESH_TOKEN: ${{ secrets.DRIVE_REFRESH_TOKEN }}
+          DRIVE_CLIENT_ID: ${{ secrets.DRIVE_CLIENT_ID }}
+          DRIVE_CLIENT_SECRET: ${{ secrets.DRIVE_CLIENT_SECRET }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PIPELINE_WEBHOOK_URL: ${{ secrets.PIPELINE_WEBHOOK_URL }}
+        run: |
+          echo "📓 Notebook: ${NOTEBOOK}"
+          echo "👤 Conta: ${KAGGLE_USER}"
+          echo "🆔 Projeto: ${PROJECT_ID}"
+
+          cd notebooks/
+
+          # 💉 Injetar secrets no notebook (script Python dedicado)
+          python ../inject_secrets.py
+
+          # Criar kernel-metadata.json via Python (evita indentação do heredoc)
+          python3 -c "
+          import json
+          meta = {
+            'id': '${KAGGLE_USER}/${NOTEBOOK}-v7',
+            'title': '${NOTEBOOK}-v7',
+            'code_file': '${NOTEBOOK}.ipynb',
+            'language': 'python',
+            'kernel_type': 'notebook',
+            'is_private': True,
+            'enable_gpu': True,
+            'enable_internet': True,
+            'dataset_sources': ['alessandroalvs/models'],
+            'competition_sources': [],
+            'kernel_sources': []
+          }
+          with open('kernel-metadata.json', 'w') as f:
+            json.dump(meta, f, indent=2)
+          print(open('kernel-metadata.json').read())
+          "
+
+          # Push com T4 x2 forçado
+          kaggle kernels push -p . --accelerator NvidiaTeslaT4
+          echo ""
+          echo "✅ Notebook enviado ao Kaggle com sucesso!"
+          echo "📡 O notebook reportará conclusão via DB automaticamente."
+          echo "⏱️ Workflow finalizado (fire-and-forget mode)."
+

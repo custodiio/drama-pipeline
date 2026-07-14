@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEO AnimeRecap — Fluxo de Postagem</title>
+  <meta name="description" content="Gere guias de postagem e capas otimizadas para YouTube de anime recap com IA." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ══ SIDEBAR ═══════════════════════════════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">⚡</span>
+    <span class="logo-text">AnimeRecap<em>SEO</em></span>
+  </div>
+
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-tab="guide" id="nav-guide">
+      <span class="nav-icon">📋</span>
+      <span>Guia de Postagem</span>
+    </button>
+    <button class="nav-item" data-tab="thumb" id="nav-thumb">
+      <span class="nav-icon">🖼️</span>
+      <span>Gerador de Capa</span>
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="api-status" id="apiStatus">
+      <span class="status-dot"></span>
+      <span>Conectando...</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ════════════════════════════════════════════════════════════════════ -->
+<main class="main-content">
+
+  <!-- ─── HEADER ──────────────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1 class="page-title" id="pageTitle">📋 Guia de Postagem</h1>
+      <span class="page-sub">Wistoria: Wand and Sword</span>
+    </div>
+    <div class="topbar-right">
+      <label class="file-btn" for="inputRoteiro">
+        <span>📂 Carregar Roteiro</span>
+        <input type="file" id="inputRoteiro" accept=".json" hidden />
+      </label>
+      <label class="file-btn secondary" for="inputIdentificacao">
+        <span>🎌 Carregar Identificação</span>
+        <input type="file" id="inputIdentificacao" accept=".json" hidden />
+      </label>
+    </div>
+  </header>
+
+  <!-- ─── TOAST ───────────────────────────────────────────────────────────── -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       TAB 1 — GUIA DE POSTAGEM
+  ══════════════════════════════════════════════════════════════════════════ -->
+  <section class="tab-content active" id="tab-guide">
+
+    <div class="section-card">
+      <div class="card-header">
+        <h2>📋 Gerar Guia Completo de Postagem</h2>
+        <p>A IA analisa o roteiro e gera título hook, hashtags, tags, descrição e estratégia de postagem otimizados para o algoritmo do YouTube.</p>
+      </div>
+
+      <div class="card-body">
+        <div class="json-status-bar" id="guideJsonStatus">
+          <div class="json-chip" id="chipRoteiro">
+            <span>📄</span> <span>Roteiro</span> <em class="chip-status">não carregado</em>
+          </div>
+          <div class="json-chip" id="chipIdentificacao">
+            <span>🎌</span> <span>Identificação</span> <em class="chip-status">não carregado</em>
+          </div>
+        </div>
+
+        <button class="btn-primary btn-large" id="btnGerarGuia" disabled>
+          <span class="btn-icon">✨</span>
+          <span>Gerar Guia de Postagem com IA</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Resultado Guia -->
+    <div id="guideResult" class="hidden">
+
+      <!-- Títulos -->
+      <div class="result-card">
+        <div class="result-card-header">
+          <h3>🔥 Título Principal</h3>
+          <button class="btn-copy" data-copy="tituloPrincipal">Copiar</button>
+        </div>
+        <div class="titulo-principal-box" id="tituloPrincipal"></div>
+
+        <h4 class="subsection-label">Títulos Alternativos</h4>
+        <div class="titulos-alt-list" id="titulosAlternativos"></div>
+      </div>
+
+      <!-- Score Viral -->
+      <div class="result-card score-card">
+        <h3>📊 Score Viral</h3>
+        <div class="score-display" id="scoreViral">
+          <div class="score-ring">
+            <svg viewBox="0 0 100 100" class="ring-svg">
+              <circle cx="50" cy="50" r="45" class="ring-bg" />
+              <circle cx="50" cy="50" r="45" class="ring-fill" id="ringFill" />
+            </svg>
+            <span class="score-number" id="scoreNumber">--</span>
+          </div>
+          <div class="score-info">
+            <p class="score-label">Potencial de Viralização</p>
+            <p class="score-detail" id="scoreDetail">Analisando...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Análise Emocional + Horário -->
+      <div class="result-grid-2">
+        <div class="result-card">
+          <h3>💫 Análise Emocional</h3>
+          <p class="info-text" id="analiseEmocional"></p>
+        </div>
+        <div class="result-card">
+          <h3>🕐 Melhor Horário</h3>
+          <p class="info-text highlight" id="melhorHorario"></p>
+          <h4 class="subsection-label">Audiência Alvo</h4>
+          <p class="info-text" id="audienciaAlvo"></p>
+        </div>
+      </div>
+
+      <!-- Descrição -->
+      <div class="result-card">
+        <div class="result-card-header">
+          <h3>📝 Descrição YouTube</h3>
+          <button class="btn-copy" data-copy="descricaoYT">Copiar</button>
+        </div>
+        <pre class="descricao-box" id="descricaoYT"></pre>
+      </div>
+
+      <!-- Tags -->
+      <div class="result-card">
+        <div class="result-card-header">
+          <h3>🏷️ Tags YouTube</h3>
+          <button class="btn-copy" data-copy="tagsYT">Copiar</button>
+        </div>
+        <div class="tags-box" id="tagsYT"></div>
+      </div>
+
+      <!-- Hashtags -->
+      <div class="result-card">
+        <div class="result-card-header">
+          <h3>#️⃣ Hashtags</h3>
+          <button class="btn-copy" data-copy="hashtagsYT">Copiar</button>
+        </div>
+        <div class="hashtags-box" id="hashtagsYT"></div>
+      </div>
+
+      <!-- Capítulos + Cards + CTA -->
+      <div class="result-grid-3">
+        <div class="result-card">
+          <h3>📌 Capítulos</h3>
+          <div class="chapters-list" id="capitulosList"></div>
+        </div>
+        <div class="result-card">
+          <h3>🃏 Cards Sugeridos</h3>
+          <div class="chapters-list" id="cardsList"></div>
+        </div>
+        <div class="result-card">
+          <h3>📣 Call to Action</h3>
+          <p class="cta-box" id="ctaVideo"></p>
+          <p class="cta-box secondary" id="ctaDescricao"></p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       TAB 2 — GERADOR DE CAPA
+  ══════════════════════════════════════════════════════════════════════════ -->
+  <section class="tab-content" id="tab-thumb">
+
+    <!-- ── STEPPER ─────────────────────────────────────────────────────── -->
+    <div class="stepper">
+      <div class="step active" id="step1-indicator">
+        <div class="step-circle">1</div>
+        <span>Análise</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="step2-indicator">
+        <div class="step-circle">2</div>
+        <span>Template</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="step3-indicator">
+        <div class="step-circle">3</div>
+        <span>Frames</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="step4-indicator">
+        <div class="step-circle">4</div>
+        <span>Spec JSON</span>
+      </div>
+    </div>
+
+    <!-- ── ETAPA 1: Análise do Roteiro ────────────────────────────────── -->
+    <div class="thumb-step active" id="thumbStep1">
+      <div class="section-card">
+        <div class="card-header">
+          <h2>🔍 Etapa 1 — Análise do Roteiro</h2>
+          <p>A IA lê o roteiro, extrai momentos-chave, identifica picos emocionais e recomenda os melhores templates.</p>
+        </div>
+        <div class="card-body">
+          <div class="json-status-bar" id="thumbJsonStatus">
+            <div class="json-chip" id="chipRoteiroThumb">
+              <span>📄</span> <span>Roteiro</span> <em class="chip-status">não carregado</em>
+            </div>
+            <div class="json-chip" id="chipIdentificacaoThumb">
+              <span>🎌</span> <span>Identificação</span> <em class="chip-status">não carregado</em>
+            </div>
+          </div>
+          <button class="btn-primary btn-large" id="btnAnalisarRoteiro" disabled>
+            <span class="btn-icon">🔍</span>
+            <span>Analisar Roteiro com IA</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ETAPA 2: Escolha do Template ──────────────────────────────── -->
+    <div class="thumb-step hidden" id="thumbStep2">
+      <div class="section-card">
+        <div class="card-header">
+          <h2>🎨 Etapa 2 — Escolha do Template</h2>
+          <p>A IA recomendou os templates abaixo com base no roteiro. Escolha o que mais te agrada para prosseguir.</p>
+        </div>
+        <div class="card-body">
+          <div class="resumo-roteiro" id="resumoRoteiro"></div>
+          <div class="templates-grid" id="templatesGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ETAPA 3: Curadoria de Frames ──────────────────────────────── -->
+    <div class="thumb-step hidden" id="thumbStep3">
+      <div class="section-card">
+        <div class="card-header">
+          <h2>🎬 Etapa 3 — Extração e Curadoria de Frames</h2>
+          <p>Faça upload do vídeo. O sistema extrairá automaticamente os frames de cada janela de tempo recomendada.</p>
+        </div>
+        <div class="card-body">
+
+          <!-- Upload de Vídeo -->
+          <div class="video-upload-zone" id="videoUploadZone">
+            <input type="file" id="inputVideo" accept="video/*" hidden />
+            <label for="inputVideo" class="upload-label">
+              <div class="upload-icon">🎬</div>
+              <p class="upload-title">Arraste o vídeo aqui ou clique para selecionar</p>
+              <p class="upload-sub">MP4, MKV, AVI — até 500MB</p>
+            </label>
+          </div>
+
+          <div class="video-info hidden" id="videoInfo">
+            <span class="video-icon">🎬</span>
+            <span class="video-name" id="videoName"></span>
+            <span class="video-size" id="videoSize"></span>
+            <button class="btn-sm danger" id="btnClearVideo">✕</button>
+          </div>
+
+          <!-- Frames necessários recomendados pela IA -->
+          <div id="framesNecessariosInfo"></div>
+
+          <button class="btn-primary btn-large" id="btnExtrairFrames" disabled>
+            <span class="btn-icon">⚡</span>
+            <span>Extrair Frames Automaticamente</span>
+          </button>
+
+        </div>
+      </div>
+
+      <!-- Grid de Frames Extraídos -->
+      <div id="framesExtraidosContainer" class="hidden">
+        <div id="framesPorPapel"></div>
+
+        <div class="section-card">
+          <div class="card-header">
+            <h2>✅ Confirmar Seleção</h2>
+            <p id="selecaoStatus">Selecione um frame para cada papel necessário.</p>
+          </div>
+          <div class="card-body">
+            <div class="selecao-resumo" id="selecaoResumo"></div>
+            <button class="btn-primary btn-large" id="btnConfirmarFrames" disabled>
+              <span class="btn-icon">🔍</span>
+              <span>Analisar Frames Selecionados com Vision AI</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ETAPA 4: PIPELINE DE GERAÇÃO AUTOMÁTICO ─────────────────────────────────── -->
+    <div class="thumb-step hidden" id="thumbStep4">
+      <div class="section-card">
+        <div class="card-header">
+          <h2>⚙️ Pipeline Automático de Capa</h2>
+          <p>As 3 etapas finais da composição da sua thumbnail.</p>
+        </div>
+        <div class="card-body">
+          <style>
+            .pipeline-step { border-left: 4px solid var(--border); padding-left: 20px; margin-left: 16px; position: relative; margin-bottom: 24px; padding-bottom: 12px; transition: border-color 0.4s ease; }
+            .pipeline-step:last-child { border-left: none; }
+            .pipeline-step.step-active { border-left-color: var(--primary); }
+            .pipeline-step.step-done { border-left-color: var(--green); }
+            .step-circle { position: absolute; left: -22px; top: -4px; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-alt); border: 4px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; transition: all 0.3s ease; }
+            .step-circle.active { border-color: var(--primary); color: var(--primary); box-shadow: 0 0 16px rgba(99,102,241,0.5); animation: pulseGlow 1.5s infinite; }
+            .step-circle.done { background: var(--green); border-color: var(--green); color: #fff; animation: none; box-shadow: 0 0 12px rgba(34,197,94,0.4); }
+            .step-header h3 { margin: 0; padding-top: 4px; font-size: 1.1rem; color: var(--text); }
+            .step-header .step-status { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+            .step-header .step-status.loading { color: var(--primary); }
+            .step-header .step-status.complete { color: var(--green); }
+            .step-content { margin-top: 16px; background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px solid var(--border); }
+            .step-content.hidden { display: none; }
+            @keyframes pulseGlow {
+              0%, 100% { box-shadow: 0 0 10px rgba(99,102,241,0.3); }
+              50% { box-shadow: 0 0 24px rgba(99,102,241,0.7); }
+            }
+            .spinner-inline { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--primary); border-top-color: transparent; border-radius: 50%; animation: spinInline 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+            @keyframes spinInline { to { transform: rotate(360deg); } }
+          </style>
+
+          <!-- Ação 1 -->
+          <div class="pipeline-step" id="plStep1">
+            <div class="step-circle" id="plCircle1">1</div>
+            <div class="step-header">
+              <h3>Validando frames</h3>
+              <div class="step-status" id="plStatus1">Aguardando...</div>
+            </div>
+            <div class="step-content hidden" id="plContent1">
+              <div id="visionResultados"></div>
+            </div>
+          </div>
+          
+          <!-- Ação 2 -->
+          <div class="pipeline-step" id="plStep2">
+            <div class="step-circle" id="plCircle2">2</div>
+            <div class="step-header">
+              <h3>Gerando Spec JSON</h3>
+              <div class="step-status" id="plStatus2">Aguardando...</div>
+            </div>
+            <div class="step-content hidden" id="plContent2">
+              <pre class="spec-json-box" id="specJson"></pre>
+            </div>
+          </div>
+          
+          <!-- Ação 3 -->
+          <div class="pipeline-step" id="plStep3">
+            <div class="step-circle" id="plCircle3">3</div>
+            <div class="step-header">
+              <h3>Gerando Imagem</h3>
+              <div class="step-status" id="plStatus3">Aguardando...</div>
+            </div>
+            <div class="step-content hidden" id="plContent3">
+              <h4 style="margin-bottom:12px; color:var(--green)">✅ Capa Gerada com Sucesso!</h4>
+              <img id="renderedThumbnailImage" src="" style="width:100%; border-radius:8px; border:1px solid var(--border); margin-bottom:16px;" />
+              <button class="btn-outline" id="btnDownloadThumbnail">⬇️ Baixar Capa (.png)</button>
+            </div>
+          </div>
+
+          <button class="btn-outline secondary" id="btnNovaIteracao" style="margin-top:24px">
+            🔄 Reiniciar (Ajustar frames)
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- ══ LOADING OVERLAY ════════════════════════════════════════════════════════ -->
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <p class="loading-msg" id="loadingMsg">Processando...</p>
+    <p class="loading-sub" id="loadingSub"></p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
