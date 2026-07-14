@@ -37,6 +37,21 @@ def get_video_duration(video_path: str) -> float:
         logger.error(f"Erro ao obter duração com ffprobe: {e}")
         return 0.0
 
+def truncate_video(input_path: str, output_path: str, seconds: float = 175.0) -> bool:
+    """Corta o vídeo para uma duração máxima em segundos de forma ultrarrápida (sem re-codificar)."""
+    if not os.path.exists(input_path):
+        return False
+    cmd = [
+        'ffmpeg', '-y', '-i', input_path, '-t', str(seconds),
+        '-c:v', 'copy', '-c:a', 'copy', output_path
+    ]
+    try:
+        subprocess.run(cmd, capture_output=True, check=True)
+        return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+    except Exception as e:
+        logger.error(f"Erro ao cortar vídeo com ffmpeg: {e}")
+        return False
+
 def extract_audio(video_path: str, audio_path: str) -> bool:
     """Extrai a faixa de áudio de um vídeo e a converte para MP3 usando ffmpeg."""
     if not os.path.exists(video_path):
@@ -129,10 +144,31 @@ async def run_scrapper_download(
         await status_msg.edit_text("❌ Falha no download do vídeo da API.", parse_mode="Markdown")
         return False
 
-    await status_msg.edit_text("✂️ **Vídeo baixado!** Extraindo faixa de áudio em MP3 via FFmpeg...", parse_mode="Markdown")
+    await status_msg.edit_text("✂️ **Vídeo baixado!** Analisando duração e processando mídia...", parse_mode="Markdown")
     
-    # Extrai o áudio
+    # Lógica de truncamento para Shorts (se o vídeo estiver entre 3 e 4 minutos, ajusta para 2.55 min/175s)
     loop = asyncio.get_running_loop()
+    duration = await loop.run_in_executor(None, get_video_duration, temp_video_path)
+    
+    if 180.0 < duration <= 240.0:
+        await status_msg.edit_text(f"✂️ **Duração do vídeo:** {duration:.1f}s (> 3min). Truncando para 175s (2.5min)...", parse_mode="Markdown")
+        truncated_path = os.path.join(uploads_dir, "video_original_truncated.mp4")
+        if os.path.exists(truncated_path):
+            try: os.remove(truncated_path)
+            except: pass
+            
+        truncate_success = await loop.run_in_executor(None, truncate_video, temp_video_path, truncated_path, 175.0)
+        if truncate_success:
+            try:
+                os.remove(temp_video_path)
+                os.rename(truncated_path, temp_video_path)
+                await status_msg.edit_text(f"✂️ **Vídeo ajustado!** Extraindo faixa de áudio em MP3 via FFmpeg...", parse_mode="Markdown")
+            except Exception as e:
+                logger.error(f"Erro ao substituir vídeo truncado: {e}")
+        else:
+            await status_msg.edit_text(f"⚠️ Falha no truncamento. Usando vídeo original.", parse_mode="Markdown")
+            
+    # Extrai o áudio
     audio_success = await loop.run_in_executor(None, extract_audio, temp_video_path, temp_audio_path)
     if not audio_success:
         await status_msg.edit_text("❌ Falha ao extrair áudio com FFmpeg.", parse_mode="Markdown")
