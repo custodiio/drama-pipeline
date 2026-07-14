@@ -32,6 +32,7 @@ from bot.database import (
     get_latest_project
 )
 from bot.pipeline_controller import PipelineController
+from bot.scrapper_downloader import run_scrapper_download
 
 load_dotenv()
 
@@ -1128,6 +1129,33 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await message.reply_text("✅ Máscara de watermark recebida!")
 
 
+@authorized
+async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Trata mensagens de texto enviadas (links de Douyin/Bilibili)."""
+    chat_id = str(update.effective_chat.id)
+    text = update.message.text.strip()
+    
+    import re
+    douyin_match = re.search(r"(https?://\S*douyin\.com\S*)", text)
+    bilibili_match = re.search(r"(https?://\S*(bilibili\.com|b23\.tv)\S*)", text)
+    
+    if douyin_match or bilibili_match:
+        url = (douyin_match or bilibili_match).group(1)
+        asyncio.create_task(
+            run_scrapper_download(
+                chat_id=chat_id,
+                context=ctx,
+                url=url,
+                user_uploads=user_uploads
+            )
+        )
+        return
+        
+    await update.message.reply_text(
+        "❓ Comando ou link não reconhecido. Envie um link válido do Douyin ou Bilibili para baixar automaticamente o drama!"
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════
 # 🌐 API SESSÃO (para o VideoRender chamar)
 # ═══════════════════════════════════════════════════════════════════
@@ -1342,6 +1370,7 @@ def main():
         filters.AUDIO | filters.VOICE | filters.Document.AUDIO, handle_audio
     ))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
 
     print("Bot Telegram iniciado! Ctrl+C para parar.")
     import asyncio
