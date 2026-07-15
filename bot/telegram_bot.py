@@ -2419,8 +2419,26 @@ async def run_local_schedule_pipeline(status_msg, platforms, post_data, guia):
             try: update_scheduled_post_status(post_id, "failed", error_msg[:250])
             except: pass
 
+def make_progress_callback(loop, status_msg, prefix):
+    """Gera um callback de progresso thread-safe e com rate limit de edicao do Telegram."""
+    state = {"last_percent": -1, "last_update_time": 0.0}
+    def progress_callback(percent):
+        now = time.time()
+        time_diff = now - state["last_update_time"]
+        # Atualiza apenas se mudar 10% ou se for 0% ou 100%, com pelo menos 3 segundos de intervalo
+        if percent == 0 or percent == 100 or (percent - state["last_percent"] >= 10 and time_diff >= 3):
+            state["last_percent"] = percent
+            state["last_update_time"] = now
+            async def edit_msg():
+                try: await status_msg.edit_text(f"{prefix} ({percent}%)")
+                except Exception as e: logger.error(f"Erro ao atualizar progresso no Telegram: {e}")
+            asyncio.run_coroutine_threadsafe(edit_msg(), loop)
+    return progress_callback
+
 async def run_upload_pipeline(status_msg, platforms, post_data, guia):
     """Pipeline de download e upload imediato."""
+    loop = asyncio.get_running_loop()
+    
     async def safe_edit_status(text, parse_mode=None):
         try: await status_msg.edit_text(text, parse_mode=parse_mode)
         except Exception as e: logger.error(f"Erro ao editar status: {e}")
@@ -2477,7 +2495,9 @@ async def run_upload_pipeline(status_msg, platforms, post_data, guia):
         
         # 1. YouTube Shorts
         if platforms["youtube_shorts"] and conn_info["youtube"]:
-            await safe_edit_status(f"📤 *Enviando para o YouTube Shorts...*\nCanal: `{conn_info['youtube']}`", parse_mode="Markdown")
+            prefix_yt = f"📤 *Enviando para o YouTube Shorts...*\nCanal: `{conn_info['youtube']}`\nProgresso:"
+            yt_cb = make_progress_callback(loop, status_msg, prefix_yt)
+            await safe_edit_status(f"{prefix_yt} 0%", parse_mode="Markdown")
             try:
                 def _upload_yt():
                     import youtube_uploader
@@ -2488,7 +2508,8 @@ async def run_upload_pipeline(status_msg, platforms, post_data, guia):
                         tags=youtube_tags,
                         category_id="24",
                         privacy_status=post_data.get("youtube_privacy", "draft"),
-                        thumbnail_path=None
+                        thumbnail_path=None,
+                        progress_callback=yt_cb
                     )
                     return video_url_res
                 yt_url = await asyncio.to_thread(_upload_yt)
@@ -2498,14 +2519,17 @@ async def run_upload_pipeline(status_msg, platforms, post_data, guia):
                 
         # 2. TikTok
         if platforms["tiktok"] and conn_info["tiktok"]:
-            await safe_edit_status(f"📤 *Enviando para o TikTok...*\nConta: `@ {conn_info['tiktok']}`", parse_mode="Markdown")
+            prefix_tt = f"📤 *Enviando para o TikTok...*\nConta: `@ {conn_info['tiktok']}`\nProgresso:"
+            tt_cb = make_progress_callback(loop, status_msg, prefix_tt)
+            await safe_edit_status(f"{prefix_tt} 0%", parse_mode="Markdown")
             try:
                 def _upload_tt():
                     import tiktok_service
                     publish_id = tiktok_service.upload_video_to_tiktok(
                         video_path=local_video_path,
                         title=tiktok_caption[:150],
-                        privacy_level=post_data.get("tiktok_privacy", "PUBLIC_TO_EVERYONE")
+                        privacy_level=post_data.get("tiktok_privacy", "PUBLIC_TO_EVERYONE"),
+                        progress_callback=tt_cb
                     )
                     return publish_id
                 pub_id = await asyncio.to_thread(_upload_tt)
