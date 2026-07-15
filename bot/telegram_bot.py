@@ -6,6 +6,7 @@ Protegido por lista de IDs autorizados.
 
 import os
 import sys
+import html
 import asyncio
 import tempfile
 import logging
