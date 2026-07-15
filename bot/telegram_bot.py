@@ -1891,6 +1891,99 @@ async def confirm_platforms(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         else:
             return await show_final_confirmation(query, context)
 
+async def handle_youtube_title_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    guia = context.user_data["post_data"]["guia"]
+    
+    if data == "yt_title_principal":
+        context.user_data["post_data"]["youtube_title"] = guia.get("titulo_principal")
+    elif data.startswith("yt_title_alt_"):
+        idx = int(data.split("_")[-1])
+        context.user_data["post_data"]["youtube_title"] = guia.get("titulos_alternativos", [])[idx]
+    elif data == "yt_title_manual":
+        await query.edit_message_text("Por favor, digite o título desejado para o YouTube:")
+        return INPUT_YOUTUBE_TITLE_MANUAL
+        
+    if context.user_data["post_data"]["platforms"]["youtube_shorts"]:
+        return await ask_shorts_title(query, context)
+    else:
+        return await ask_youtube_privacy(query, context)
+
+async def handle_youtube_title_manual(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_user.id not in AUTHORIZED_USERS:
+        return ConversationHandler.END
+        
+    title = update.message.text.strip()
+    if not title:
+        await update.message.reply_text("Título inválido. Por favor, envie um texto válido:")
+        return INPUT_YOUTUBE_TITLE_MANUAL
+        
+    context.user_data["post_data"]["youtube_title"] = title
+    
+    if context.user_data["post_data"]["platforms"]["youtube_shorts"]:
+        # Precisa definir título do Shorts
+        guia = context.user_data["post_data"]["guia"]
+        titulo_p = guia.get("titulo_principal", "Sem Título")
+        keyboard = [
+            [InlineKeyboardButton(f"Usar: {titulo_p[:40]}... #shorts", callback_data="shorts_title_principal")],
+            [InlineKeyboardButton("✍️ Digitar Título Manualmente", callback_data="shorts_title_manual")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "🎬 *Título para o YouTube Shorts:*\n\n"
+            f"*Sugestão:* {titulo_p} #shorts\n\n"
+            "Selecione ou digite um título:",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        return SELECT_SHORTS_TITLE
+    else:
+        return await ask_youtube_privacy(update, context)
+
+async def handle_instagram_scheduling(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    if data == "ig_now":
+        context.user_data["post_data"]["instagram_scheduled_time"] = None
+        if context.user_data["post_data"]["platforms"]["tiktok"]:
+            return await check_tiktok_workflow(update, context)
+        return await show_final_confirmation(query, context)
+    elif data == "ig_schedule":
+        await query.edit_message_text(
+            "Por favor, digite a data e hora do agendamento para o Instagram.\n"
+            "Use o formato: `AAAA-MM-DD HH:MM`\n"
+            "Exemplo: `2026-07-24 18:00`",
+            parse_mode="Markdown"
+        )
+        return INPUT_INSTAGRAM_TIME
+
+async def handle_instagram_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_user.id not in AUTHORIZED_USERS:
+        return ConversationHandler.END
+        
+    raw_time = update.message.text.strip()
+    try:
+        dt = datetime.strptime(raw_time, "%Y-%m-%d %H:%M")
+        context.user_data["post_data"]["instagram_scheduled_time"] = dt.strftime("%Y-%m-%d %H:%M:00")
+        
+        if context.user_data["post_data"]["platforms"]["tiktok"]:
+            return await check_tiktok_workflow(update, context)
+            
+        await show_final_confirmation_message(update.message, context)
+        return CONFIRM_POST
+    except ValueError:
+        await update.message.reply_text(
+            "❌ Formato inválido! Por favor, utilize o formato correto:\n"
+            "`AAAA-MM-DD HH:MM` (ex: `2026-07-24 18:00`)",
+            parse_mode="Markdown"
+        )
+        return INPUT_INSTAGRAM_TIME
+
 async def ask_shorts_title(query, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Pergunta o título para o YouTube Shorts."""
     guia = context.user_data["post_data"]["guia"]
