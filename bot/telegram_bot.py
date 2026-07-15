@@ -9,6 +9,11 @@ import sys
 import asyncio
 import tempfile
 import logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
 import uuid
 import hashlib
 import time
@@ -36,6 +41,60 @@ from bot.scrapper_downloader import run_scrapper_download, finalize_scrapper_dow
 
 load_dotenv()
 
+import json
+import shutil
+
+# Injeta PostRecap no path para uploader de redes sociais
+POSTRECAP_PATH = "/home/ubuntu/apps/Post_recap"
+if os.path.exists(POSTRECAP_PATH) and POSTRECAP_PATH not in sys.path:
+    sys.path.insert(0, POSTRECAP_PATH)
+
+try:
+    import tiktok_service
+    import youtube_uploader
+    has_postrecap = True
+except ImportError:
+    has_postrecap = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Aviso: Post_recap nao encontrado no path!")
+
+def get_user_connections(email: str):
+    """Retorna as conexões ativas de redes sociais de um e-mail do banco de dados users.db."""
+    db_path = "/home/ubuntu/apps/database/users.db"
+    if not os.path.exists(db_path):
+        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "users.db")
+        if not os.path.exists(db_path):
+            return {"youtube": None, "tiktok": None}
+
+    import sqlite3
+    connections = {"youtube": None, "tiktok": None}
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # YouTube
+        try:
+            cursor.execute("SELECT channel_name FROM youtube_connections WHERE email = ?", (email,))
+            row = cursor.fetchone()
+            if row:
+                connections["youtube"] = row[0]
+        except Exception as e:
+            pass
+            
+        # TikTok
+        try:
+            cursor.execute("SELECT username FROM tiktok_connections WHERE email = ?", (email,))
+            row = cursor.fetchone()
+            if row:
+                connections["tiktok"] = row[0]
+        except Exception as e:
+            pass
+            
+        conn.close()
+    except Exception as e:
+        logger.error(f"Erro ao ler conexoes do banco users.db: {e}")
+    return connections
+
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 SESSION_SECRET = os.getenv("SESSION_SECRET")
 if not SESSION_SECRET:
@@ -48,11 +107,6 @@ AUTHORIZED_USERS = set(
     if uid.strip().isdigit()
 )
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
-logger = logging.getLogger(__name__)
 
 controller = PipelineController()
 
@@ -130,7 +184,8 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🚀 Novo Projeto Automático", callback_data="new_auto")],
         [InlineKeyboardButton("🛠️ Novo Projeto Manual", callback_data="new_manual")],
         [InlineKeyboardButton("☁️ Iniciar via GDrive (Scrapper)", callback_data="start_usar_drive")],
-        [InlineKeyboardButton("📂 Iniciar via Upload Local", callback_data="start_usar_local")]
+        [InlineKeyboardButton("📂 Iniciar via Upload Local", callback_data="start_usar_local")],
+        [InlineKeyboardButton("📢 Menu de Postagem 🚀", callback_data="menu_postagem")]
     ]
     await update.message.reply_text(
         "🎬 *Agente de Postagem — DramaRecap*\n\n"
@@ -991,6 +1046,42 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             dispatch_parallel([f"render-pt{part}"], pid)
             await query.edit_message_text(f"🚀 Render PT {part} disparado!")
 
+    # -------- POSTAGEM --------
+    elif data == "menu_postagem":
+        await show_posting_menu(update, ctx, edit=True)
+
+    elif data == "post_now_select":
+        await show_post_select_platforms(update, ctx)
+
+    elif data == "toggle_post_yt":
+        if "post_platforms" not in ctx.user_data:
+            ctx.user_data["post_platforms"] = {"youtube": True, "tiktok": True}
+        ctx.user_data["post_platforms"]["youtube"] = not ctx.user_data["post_platforms"]["youtube"]
+        await show_post_select_platforms(update, ctx)
+
+    elif data == "toggle_post_tt":
+        if "post_platforms" not in ctx.user_data:
+            ctx.user_data["post_platforms"] = {"youtube": True, "tiktok": True}
+        ctx.user_data["post_platforms"]["tiktok"] = not ctx.user_data["post_platforms"]["tiktok"]
+        await show_post_select_platforms(update, ctx)
+
+    elif data == "confirm_post_now":
+        asyncio.create_task(run_immediate_post(update, ctx))
+
+    elif data == "back_to_lobby":
+        buttons = [
+            [InlineKeyboardButton("🚀 Novo Projeto Automático", callback_data="new_auto")],
+            [InlineKeyboardButton("🛠️ Novo Projeto Manual", callback_data="new_manual")],
+            [InlineKeyboardButton("☁️ Iniciar via GDrive (Scrapper)", callback_data="start_usar_drive")],
+            [InlineKeyboardButton("📂 Iniciar via Upload Local", callback_data="start_usar_local")],
+            [InlineKeyboardButton("📢 Menu de Postagem 🚀", callback_data="menu_postagem")]
+        ]
+        await query.edit_message_text(
+            "🎬 *Agente de Postagem — DramaRecap*\n\n"
+            "Bem-vindo! Escolha uma opção abaixo após enviar os arquivos, ou use os comandos normais.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1363,6 +1454,7 @@ def main():
             BotCommand("cancel", "Cancela projeto ativo"),
             BotCommand("usar_local", "Iniciar projeto com arquivos do PC"),
             BotCommand("usar_drive", "Iniciar projeto com arquivos do Google Drive"),
+            BotCommand("postar", "Menu de postagem nas redes sociais"),
         ])
         print("Comandos do Telegram registrados no menu azul!")
 
@@ -1381,6 +1473,7 @@ def main():
     app.add_handler(CommandHandler("upload", cmd_upload))
     app.add_handler(CommandHandler("cancel", cmd_cancel))
     app.add_handler(CommandHandler("myid", cmd_myid))
+    app.add_handler(CommandHandler("postar", cmd_postar))
 
     # Callbacks (botões inline)
     app.add_handler(CallbackQueryHandler(handle_callback))
@@ -1401,6 +1494,222 @@ def main():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
     app.run_polling(drop_pending_updates=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 📢 NOVAS FUNÇÕES DE POSTAGEM
+# ═══════════════════════════════════════════════════════════════════
+
+@authorized
+async def cmd_postar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Comando /postar - Exibe o menu de postagem."""
+    await show_posting_menu(update, ctx, edit=False)
+
+async def show_posting_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE, edit: bool = True):
+    """Exibe o menu de postagem no Telegram."""
+    email = os.getenv("TIKTOK_USER_EMAIL", "mariadelurdesalvesdoprado@gmail.com")
+    conn_info = get_user_connections(email)
+    
+    status_yt = f"🟢 {conn_info['youtube']}" if conn_info["youtube"] else "🔴 Desconectado"
+    status_tt = f"🟢 {conn_info['tiktok']}" if conn_info["tiktok"] else "🔴 Desconectado"
+    
+    text = (
+        "📢 *POSTAGEM SOCIAL — DRAMARECAP*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📧 *Conta Ativa:* `{email}`\n\n"
+        f"🎬 *YouTube Shorts:* {status_yt}\n"
+        f"📱 *TikTok:* {status_tt}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Deseja postar o último vídeo final gerado nas suas redes?"
+    )
+    
+    buttons = []
+    # Só adiciona o botão de postar se houver pelo menos uma rede conectada
+    if conn_info["youtube"] or conn_info["tiktok"]:
+        buttons.append([InlineKeyboardButton("🚀 Postar Vídeo Final Agora", callback_data="post_now_select")])
+        
+    buttons.append([InlineKeyboardButton("🔙 Voltar ao Início", callback_data="back_to_lobby")])
+    
+    reply_markup = InlineKeyboardMarkup(buttons)
+    
+    if edit and update.callback_query:
+        await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+    else:
+        msg = update.message or (update.callback_query.message if update.callback_query else None)
+        if msg:
+            await msg.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+
+async def show_post_select_platforms(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    
+    if "post_platforms" not in ctx.user_data:
+        ctx.user_data["post_platforms"] = {"youtube": True, "tiktok": True}
+        
+    p = ctx.user_data["post_platforms"]
+    
+    yt_check = "✅" if p["youtube"] else "❌"
+    tt_check = "✅" if p["tiktok"] else "❌"
+    
+    text = (
+        "🚀 *POSTAR VÍDEO FINAL NOW*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Selecione as redes sociais para postagem:\n\n"
+        f"🎥 YouTube Shorts: {yt_check}\n"
+        f"🎵 TikTok: {tt_check}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Clique nos botões abaixo para marcar/desmarcar. Quando estiver pronto, confirme o envio."
+    )
+    
+    buttons = [
+        [InlineKeyboardButton(f"YouTube Shorts: {yt_check}", callback_data="toggle_post_yt")],
+        [InlineKeyboardButton(f"TikTok: {tt_check}", callback_data="toggle_post_tt")],
+        [InlineKeyboardButton("📤 Confirmar e Enviar!", callback_data="confirm_post_now")],
+        [InlineKeyboardButton("🔙 Cancelar", callback_data="menu_postagem")]
+    ]
+    
+    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(buttons))
+
+async def run_immediate_post(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.edit_message_text("⏳ *Buscando o arquivo de vídeo final no Google Drive...*", parse_mode="Markdown")
+    
+    email = os.getenv("TIKTOK_USER_EMAIL", "mariadelurdesalvesdoprado@gmail.com")
+    p = ctx.user_data.get("post_platforms", {"youtube": True, "tiktok": True})
+    
+    # 1. Obter conexões
+    conn_info = get_user_connections(email)
+    
+    # 2. Criar diretório temporário local
+    temp_dir = tempfile.mkdtemp(prefix="drama_post_")
+    local_video_path = os.path.join(temp_dir, "video.mp4")
+    local_guia_path = os.path.join(temp_dir, "guia.json")
+    
+    # 3. Baixar arquivos
+    await query.edit_message_text("📥 *Baixando o vídeo final do Drive para postagem...*", parse_mode="Markdown")
+    
+    # Função síncrona de download
+    def _download():
+        success_video = controller.drive.baixar("DRAMA/PIPELINE/FINAL/drama_final.mp4", local_video_path)
+        if not success_video:
+            project = get_latest_project(str(query.message.chat.id))
+            if project:
+                pid = str(project["id"])
+                controller.drive.baixar(f"DRAMA/PIPELINE/PROJECTS/{pid}/drama_final.mp4", local_video_path)
+        
+        controller.drive.baixar("DRAMA/PIPELINE/FINAL/guia_postagem.json", local_guia_path)
+        if not os.path.exists(local_guia_path):
+            project = get_latest_project(str(query.message.chat.id))
+            if project:
+                pid = str(project["id"])
+                controller.drive.baixar(f"DRAMA/PIPELINE/PROJECTS/{pid}/guia_postagem.json", local_guia_path)
+                
+    await asyncio.to_thread(_download)
+    
+    if not os.path.exists(local_video_path):
+        await query.edit_message_text(
+            "❌ *Vídeo final não encontrado no Drive!*\n\n"
+            "Verifique se o processo de Merge Final já foi concluído com sucesso e se o arquivo `drama_final.mp4` está na pasta `DRAMA/PIPELINE/FINAL` no Drive.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Voltar", callback_data="menu_postagem")]])
+        )
+        try: shutil.rmtree(temp_dir, ignore_errors=True)
+        except: pass
+        return
+
+    # 4. Ler guia de postagem
+    guia_data = {}
+    if os.path.exists(local_guia_path):
+        try:
+            with open(local_guia_path, "r", encoding="utf-8") as f:
+                guia_data = json.load(f)
+        except Exception as e:
+            logger.error(f"Erro ao ler guia de postagem: {e}")
+            
+    # Títulos e legendas padrão
+    project_title = guia_data.get("titulo_principal") or "Drama Recap"
+    
+    # Formatação de legenda adaptada para dramas
+    def get_formatted_caption(g):
+        if g.get("tiktok_guia"):
+            return g["tiktok_guia"]
+        hook = g.get("tiktok_titulo") or g.get("titulo_principal") or "Você teria coragem de assistir até o final? 😳"
+        titulo_dorama = g.get("tiktok_titulo_anime") or g.get("titulo_anime") or "Drama"
+        sinopse = g.get("tiktok_sinopse") or g.get("sinopse") or "Resumo incrível!"
+        tags_list = g.get("instagram_hashtags") or g.get("tiktok_hashtags") or ["#dramas", "#doramas", "#recap", "#series"]
+        tags_str = " ".join(tags_list[:5]) if isinstance(tags_list, list) else tags_list
+        return f"{hook}\n\nTitulo: {titulo_dorama}\n\nSinopse: {sinopse}\n\n{tags_str}"
+
+    tiktok_caption = get_formatted_caption(guia_data)
+    youtube_title = guia_data.get("titulo_principal") or project_title
+    youtube_desc = guia_data.get("descricao") or f"Assista a {project_title}.\n\n#dramas #shorts #doramas"
+    youtube_tags = guia_data.get("tags_youtube") or ["dramas", "shorts", "recap"]
+    if isinstance(youtube_tags, str):
+        youtube_tags = [t.strip() for t in youtube_tags.split(",") if t.strip()]
+        
+    results = []
+    
+    # Configurar e-mail no environment
+    os.environ["TIKTOK_USER_EMAIL"] = email
+    os.environ["YOUTUBE_USER_EMAIL"] = email
+    
+    # 5. Postar no YouTube Shorts
+    if p["youtube"] and conn_info["youtube"]:
+        await query.edit_message_text(f"📤 *Enviando para o YouTube Shorts...*\nCanal: `{conn_info['youtube']}`", parse_mode="Markdown")
+        try:
+            def _upload_yt():
+                import youtube_uploader
+                video_id_res, video_url_res = youtube_uploader.upload_video_to_youtube(
+                    video_path=local_video_path,
+                    title=youtube_title[:100],  # Limite do YT
+                    description=youtube_desc,
+                    tags=youtube_tags,
+                    category_id="24",
+                    privacy_status="public",
+                    thumbnail_path=None
+                )
+                return video_url_res
+                
+            yt_url = await asyncio.to_thread(_upload_yt)
+            results.append(f"🎥 *YouTube Shorts:* ✅ Postado com sucesso!\n🔗 {yt_url}")
+        except Exception as ex:
+            results.append(f"🎥 *YouTube Shorts:* ❌ Falhou!\n`Erro: {ex}`")
+            logger.error(f"Falha upload YouTube: {ex}")
+            
+    # 6. Postar no TikTok
+    if p["tiktok"] and conn_info["tiktok"]:
+        await query.edit_message_text(f"📤 *Enviando para o TikTok...*\nConta: `@ {conn_info['tiktok']}`", parse_mode="Markdown")
+        try:
+            def _upload_tt():
+                import tiktok_service
+                publish_id = tiktok_service.upload_video_to_tiktok(
+                    video_path=local_video_path,
+                    title=tiktok_caption[:150],  # Limite do TikTok
+                    privacy_level="PUBLIC_TO_EVERYONE"
+                )
+                return publish_id
+                
+            pub_id = await asyncio.to_thread(_upload_tt)
+            results.append(f"🎵 *TikTok:* ✅ Postado com sucesso! (ID: `{pub_id}`)")
+        except Exception as ex:
+            results.append(f"🎵 *TikTok:* ❌ Falhou!\n`Erro: {ex}`")
+            logger.error(f"Falha upload TikTok: {ex}")
+            
+    # Limpar arquivos locais
+    try: shutil.rmtree(temp_dir, ignore_errors=True)
+    except: pass
+    
+    results_str = "\n\n".join(results)
+    if not results:
+        results_str = "⚠️ Nenhuma rede selecionada ou conectada para envio."
+        
+    await query.edit_message_text(
+        "📢 *RELATÓRIO DE POSTAGEM*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{results_str}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Voltar", callback_data="menu_postagem")]])
+    )
 
 
 if __name__ == "__main__":
