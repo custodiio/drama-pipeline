@@ -1050,21 +1050,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "menu_postagem":
         await show_posting_menu(update, ctx, edit=True)
 
-    elif data == "post_now_select":
-        await show_post_select_platforms(update, ctx)
-
-    elif data == "toggle_post_yt":
-        if "post_platforms" not in ctx.user_data:
-            ctx.user_data["post_platforms"] = {"youtube": True, "tiktok": True}
-        ctx.user_data["post_platforms"]["youtube"] = not ctx.user_data["post_platforms"]["youtube"]
-        await show_post_select_platforms(update, ctx)
-
-    elif data == "toggle_post_tt":
-        if "post_platforms" not in ctx.user_data:
-            ctx.user_data["post_platforms"] = {"youtube": True, "tiktok": True}
-        ctx.user_data["post_platforms"]["tiktok"] = not ctx.user_data["post_platforms"]["tiktok"]
-        await show_post_select_platforms(update, ctx)
-
     elif data == "confirm_post_now":
         asyncio.create_task(run_immediate_post(update, ctx))
 
@@ -1589,12 +1574,12 @@ async def run_immediate_post(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     
     # Função síncrona de download
     def _download():
-        success_video = controller.drive.baixar("DRAMA/PIPELINE/FINAL/drama_final.mp4", local_video_path)
+        success_video = controller.drive.baixar("DRAMA/PIPELINE/FINAL/video_final.mp4", local_video_path)
         if not success_video:
             project = get_latest_project(str(query.message.chat.id))
             if project:
                 pid = str(project["id"])
-                controller.drive.baixar(f"DRAMA/PIPELINE/PROJECTS/{pid}/drama_final.mp4", local_video_path)
+                controller.drive.baixar(f"DRAMA/PIPELINE/PROJECTS/{pid}/video_final.mp4", local_video_path)
         
         controller.drive.baixar("DRAMA/PIPELINE/FINAL/guia_postagem.json", local_guia_path)
         if not os.path.exists(local_guia_path):
@@ -1608,7 +1593,7 @@ async def run_immediate_post(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not os.path.exists(local_video_path):
         await query.edit_message_text(
             "❌ *Vídeo final não encontrado no Drive!*\n\n"
-            "Verifique se o processo de Merge Final já foi concluído com sucesso e se o arquivo `drama_final.mp4` está na pasta `DRAMA/PIPELINE/FINAL` no Drive.",
+            "Verifique se o processo de Merge Final já foi concluído com sucesso e se o arquivo `video_final.mp4` está na pasta `DRAMA/PIPELINE/FINAL` no Drive.",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Voltar", callback_data="menu_postagem")]])
         )
@@ -1626,23 +1611,25 @@ async def run_immediate_post(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Erro ao ler guia de postagem: {e}")
             
     # Títulos e legendas padrão
-    project_title = guia_data.get("titulo_principal") or "Drama Recap"
+    project_title = guia_data.get("title") or guia_data.get("titulo_principal") or "Drama Recap"
     
     # Formatação de legenda adaptada para dramas
     def get_formatted_caption(g):
+        if g.get("tiktok_desc"):
+            return g["tiktok_desc"]
         if g.get("tiktok_guia"):
             return g["tiktok_guia"]
         hook = g.get("tiktok_titulo") or g.get("titulo_principal") or "Você teria coragem de assistir até o final? 😳"
-        titulo_dorama = g.get("tiktok_titulo_anime") or g.get("titulo_anime") or "Drama"
+        titulo_dorama = g.get("tiktok_titulo_anime") or g.get("titulo_anime") or g.get("title") or "Drama"
         sinopse = g.get("tiktok_sinopse") or g.get("sinopse") or "Resumo incrível!"
         tags_list = g.get("instagram_hashtags") or g.get("tiktok_hashtags") or ["#dramas", "#doramas", "#recap", "#series"]
         tags_str = " ".join(tags_list[:5]) if isinstance(tags_list, list) else tags_list
         return f"{hook}\n\nTitulo: {titulo_dorama}\n\nSinopse: {sinopse}\n\n{tags_str}"
 
     tiktok_caption = get_formatted_caption(guia_data)
-    youtube_title = guia_data.get("titulo_principal") or project_title
-    youtube_desc = guia_data.get("descricao") or f"Assista a {project_title}.\n\n#dramas #shorts #doramas"
-    youtube_tags = guia_data.get("tags_youtube") or ["dramas", "shorts", "recap"]
+    youtube_title = guia_data.get("youtube_title") or guia_data.get("titulo_principal") or project_title
+    youtube_desc = guia_data.get("youtube_desc") or guia_data.get("descricao") or f"Assista a {project_title}.\n\n#dramas #shorts #doramas"
+    youtube_tags = guia_data.get("youtube_tags") or guia_data.get("tags_youtube") or ["dramas", "shorts", "recap"]
     if isinstance(youtube_tags, str):
         youtube_tags = [t.strip() for t in youtube_tags.split(",") if t.strip()]
         
