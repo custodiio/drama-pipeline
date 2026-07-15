@@ -1891,6 +1891,48 @@ async def confirm_platforms(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         else:
             return await show_final_confirmation(query, context)
 
+async def handle_tiktok_scheduling(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    if data == "tt_now":
+        context.user_data["post_data"]["tiktok_scheduled_time"] = None
+        if context.user_data["post_data"].get("is_scheduled_run"):
+            return await ask_unified_schedule_time(query, context)
+        else:
+            return await show_final_confirmation(query, context)
+    elif data == "tt_schedule":
+        await query.edit_message_text(
+            "Por favor, digite a data e hora do agendamento para o TikTok.\n"
+            "Use o formato: `AAAA-MM-DD HH:MM`\n"
+            "Exemplo: `2026-07-24 18:00`",
+            parse_mode="Markdown"
+        )
+        return INPUT_TIKTOK_TIME
+
+async def handle_tiktok_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_user.id not in AUTHORIZED_USERS:
+        return ConversationHandler.END
+        
+    raw_time = update.message.text.strip()
+    try:
+        dt = datetime.strptime(raw_time, "%Y-%m-%d %H:%M")
+        context.user_data["post_data"]["tiktok_scheduled_time"] = dt.strftime("%Y-%m-%d %H:%M:00")
+        
+        if context.user_data["post_data"].get("is_scheduled_run"):
+            return await ask_unified_schedule_time(update.message, context)
+            
+        await show_final_confirmation_message(update.message, context)
+        return CONFIRM_POST
+    except ValueError:
+        await update.message.reply_text(
+            "❌ Formato inválido! Por favor, utilize o formato correto:\n"
+            "`AAAA-MM-DD HH:MM` (ex: `2026-07-24 18:00`)",
+            parse_mode="Markdown"
+        )
+        return INPUT_TIKTOK_TIME
+
 async def handle_youtube_title_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
