@@ -28,7 +28,8 @@ if sys.stderr.encoding != 'utf-8':
 from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    CallbackQueryHandler, ContextTypes, filters
+    CallbackQueryHandler, ContextTypes, filters,
+    ConversationHandler
 )
 from dotenv import load_dotenv
 
