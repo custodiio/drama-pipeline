@@ -34,6 +34,9 @@ secrets = {
     "AZURE_OPENAI_ENDPOINT": os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
     "AZURE_OPENAI_API_KEY": os.environ.get("AZURE_OPENAI_API_KEY", ""),
     "AZURE_OPENAI_DEPLOYMENT": os.environ.get("AZURE_OPENAI_DEPLOYMENT", ""),
+    "SRT_TYPE": os.environ.get("SRT_TYPE", ""),
+    "BG_AUDIO": os.environ.get("BG_AUDIO", ""),
+    "AZURE_ENABLED": os.environ.get("AZURE_ENABLED", ""),
 }
 
 replaced_count = 0

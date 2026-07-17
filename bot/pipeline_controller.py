@@ -175,8 +175,16 @@ class PipelineController:
 
     def disparar_omni_imediatamente(self, project_id):
         """Etapa inicial: Dispara Omni (Dublagem) imediatamente após upload."""
+        project_db = get_project(project_id)
+        extra = {}
+        if project_db:
+            extra = {
+                "bg_audio": str(project_db.get("bg_audio", False)),
+                "srt_type": str(project_db.get("srt_type", "normal")),
+                "azure_enabled": str(project_db.get("azure_enabled", True))
+            }
         update_step(project_id, "step_omni", "running")
-        dispatch_workflow("omni", project_id)
+        dispatch_workflow("omni", project_id, extra_payload=extra)
 
     def gerar_seo_automatico(self, project_id):
         """
