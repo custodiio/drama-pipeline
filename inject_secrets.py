@@ -31,6 +31,9 @@ secrets = {
     "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
     "PIPELINE_PROJECT_ID": os.environ.get("PROJECT_ID", ""),
     "PIPELINE_WEBHOOK_URL": os.environ.get("PIPELINE_WEBHOOK_URL", ""),
+    "AZURE_OPENAI_ENDPOINT": os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
+    "AZURE_OPENAI_API_KEY": os.environ.get("AZURE_OPENAI_API_KEY", ""),
+    "AZURE_OPENAI_DEPLOYMENT": os.environ.get("AZURE_OPENAI_DEPLOYMENT", ""),
 }
 
 replaced_count = 0

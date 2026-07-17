@@ -69,6 +69,7 @@ def init_db():
             thumbnail_enabled BOOLEAN DEFAULT TRUE,
             bg_audio BOOLEAN DEFAULT FALSE,
             srt_type TEXT DEFAULT 'normal',
+            azure_enabled BOOLEAN DEFAULT TRUE,
             
             started_at TIMESTAMPTZ,
             completed_at TIMESTAMPTZ
@@ -148,6 +149,7 @@ def _migrate_db():
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt3 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt4 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt5 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS azure_enabled BOOLEAN DEFAULT TRUE",
     ]
     for sql in migrations:
         try:
@@ -179,15 +181,15 @@ def create_project(project_name: str, chat_id: str) -> dict:
     return project
 
 
-def set_project_opts(project_id: str, manual_mode: bool, thumbnail_enabled: bool, bg_audio: bool = False, srt_type: str = 'normal'):
-    """Salva as opções de modo, thumbnail e processamento de áudio/legenda do projeto."""
+def set_project_opts(project_id: str, manual_mode: bool, thumbnail_enabled: bool, bg_audio: bool = False, srt_type: str = 'normal', azure_enabled: bool = True):
+    """Salva as opções de modo, thumbnail, processamento de áudio/legenda e Azure do projeto."""
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute("""
         UPDATE pipeline_projects
-        SET manual_mode = %s, thumbnail_enabled = %s, bg_audio = %s, srt_type = %s, updated_at = NOW()
+        SET manual_mode = %s, thumbnail_enabled = %s, bg_audio = %s, srt_type = %s, azure_enabled = %s, updated_at = NOW()
         WHERE id = %s::uuid
-    """, (manual_mode, thumbnail_enabled, bg_audio, srt_type, project_id))
+    """, (manual_mode, thumbnail_enabled, bg_audio, srt_type, azure_enabled, project_id))
     conn.commit()
     cur.close()
     conn.close()
