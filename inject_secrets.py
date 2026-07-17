@@ -46,6 +46,8 @@ for cell in nb["cells"]:
     new_source = []
     for line in cell["source"]:
         for key, value in secrets.items():
+            if not value:
+                continue
             safe_val = json.dumps(value)  # Escapa aspas e caracteres especiais
             old_line = line
             # Todos os padrões usados nos notebooks
