@@ -31,12 +31,10 @@ secrets = {
     "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
     "PIPELINE_PROJECT_ID": os.environ.get("PROJECT_ID", ""),
     "PIPELINE_WEBHOOK_URL": os.environ.get("PIPELINE_WEBHOOK_URL", ""),
+    "PIPELINE_TASK_KEY": os.environ.get("TASK_KEY", ""),
     "AZURE_OPENAI_ENDPOINT": os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
     "AZURE_OPENAI_API_KEY": os.environ.get("AZURE_OPENAI_API_KEY", ""),
     "AZURE_OPENAI_DEPLOYMENT": os.environ.get("AZURE_OPENAI_DEPLOYMENT", ""),
-    "SRT_TYPE": os.environ.get("SRT_TYPE", ""),
-    "BG_AUDIO": os.environ.get("BG_AUDIO", ""),
-    "AZURE_ENABLED": os.environ.get("AZURE_ENABLED", ""),
 }
 
 replaced_count = 0
@@ -49,8 +47,6 @@ for cell in nb["cells"]:
     new_source = []
     for line in cell["source"]:
         for key, value in secrets.items():
-            if not value:
-                continue
             safe_val = json.dumps(value)  # Escapa aspas e caracteres especiais
             old_line = line
             # Todos os padrões usados nos notebooks

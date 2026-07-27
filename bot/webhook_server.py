@@ -141,7 +141,7 @@ class PipelineWebhookHandler(BaseHTTPRequestHandler):
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <meta name="apple-mobile-web-app-capable" content="yes">
-            <title>Upload DramaRecap</title>
+            <title>Upload AnimeRecap</title>
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body {
@@ -282,7 +282,7 @@ class PipelineWebhookHandler(BaseHTTPRequestHandler):
             </head>
             <body>
             <div class="container">
-                <h2>📤 Upload DramaRecap</h2>
+                <h2>📤 Upload AnimeRecap</h2>
                 <p class="subtitle">Toque para selecionar ou arraste o arquivo</p>
 
                 <div class="upload-zone" id="zone-video">
@@ -302,7 +302,7 @@ class PipelineWebhookHandler(BaseHTTPRequestHandler):
                 <div class="progress audio-prog" id="prog-audio"><div class="progress-bar" id="bar-audio"></div></div>
 
                 <div id="status"></div>
-                <p class="footer-tip">Após enviar os dois arquivos, vá no Telegram e use<br><b>/usar_local Nome do Drama</b></p>
+                <p class="footer-tip">Após enviar os dois arquivos, vá no Telegram e use<br><b>/usar_local Nome do Anime</b></p>
             </div>
             <script>
             (function() {
@@ -722,16 +722,6 @@ class PipelineWebhookHandler(BaseHTTPRequestHandler):
                 cell_status = data.get("status", "done")
                 pid = data.get("project_id")
                 cell_end(pid, nb, cell_idx, cell_status, data.get("message", ""))
-
-                # Trigger SEO automático quando cel4 (tradução simplificada) finaliza
-                if cell_idx == 4 and cell_status == "done" and pid and _seo_notifier:
-                    import threading
-                    threading.Thread(
-                        target=_seo_notifier,
-                        args=(pid,),
-                        daemon=True
-                    ).start()
-                    logger.info(f"[SEO] Trigger disparado para projeto {pid} (cel4 done)")
 
                 self._set_headers(200)
                 self.wfile.write(json.dumps({"ok": True}).encode())

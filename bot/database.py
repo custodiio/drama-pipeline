@@ -40,24 +40,108 @@ def init_db():
             step_upload TEXT DEFAULT 'pending',
             step_split TEXT DEFAULT 'pending',
             step_omni TEXT DEFAULT 'pending',
+            step_omni_main TEXT DEFAULT 'pending',
+            step_omni_tts_pt1 TEXT DEFAULT 'pending',
+            step_omni_tts_pt2 TEXT DEFAULT 'pending',
+            step_omni_tts_pt3 TEXT DEFAULT 'pending',
+            step_omni_tts_pt4 TEXT DEFAULT 'pending',
+            step_omni_assemble TEXT DEFAULT 'pending',
             step_watermark_pt1 TEXT DEFAULT 'pending',
             step_watermark_pt2 TEXT DEFAULT 'pending',
             step_watermark_pt3 TEXT DEFAULT 'pending',
             step_watermark_pt4 TEXT DEFAULT 'pending',
             step_watermark_pt5 TEXT DEFAULT 'pending',
+            step_watermark_pt6 TEXT DEFAULT 'pending',
+            step_watermark_pt7 TEXT DEFAULT 'pending',
+            step_watermark_pt8 TEXT DEFAULT 'pending',
+            step_watermark_pt9 TEXT DEFAULT 'pending',
+            step_watermark_pt10 TEXT DEFAULT 'pending',
+            step_watermark_pt11 TEXT DEFAULT 'pending',
+            step_watermark_pt12 TEXT DEFAULT 'pending',
+            step_watermark_pt13 TEXT DEFAULT 'pending',
+            step_watermark_pt14 TEXT DEFAULT 'pending',
+            step_watermark_pt15 TEXT DEFAULT 'pending',
+            step_watermark_pt16 TEXT DEFAULT 'pending',
+            step_watermark_pt17 TEXT DEFAULT 'pending',
+            step_watermark_pt18 TEXT DEFAULT 'pending',
+            step_watermark_pt19 TEXT DEFAULT 'pending',
+            step_watermark_pt20 TEXT DEFAULT 'pending',
+            step_watermark_pt21 TEXT DEFAULT 'pending',
+            step_watermark_pt22 TEXT DEFAULT 'pending',
+            step_watermark_pt23 TEXT DEFAULT 'pending',
+            step_watermark_pt24 TEXT DEFAULT 'pending',
+            step_watermark_pt25 TEXT DEFAULT 'pending',
+            step_watermark_pt26 TEXT DEFAULT 'pending',
+            step_watermark_pt27 TEXT DEFAULT 'pending',
+            step_watermark_pt28 TEXT DEFAULT 'pending',
+            step_watermark_pt29 TEXT DEFAULT 'pending',
+            step_watermark_pt30 TEXT DEFAULT 'pending',
+            step_enhancer_pt0 TEXT DEFAULT 'pending',
             step_enhancer_pt1 TEXT DEFAULT 'pending',
             step_enhancer_pt2 TEXT DEFAULT 'pending',
             step_enhancer_pt3 TEXT DEFAULT 'pending',
             step_enhancer_pt4 TEXT DEFAULT 'pending',
             step_enhancer_pt5 TEXT DEFAULT 'pending',
+            step_enhancer_pt6 TEXT DEFAULT 'pending',
+            step_enhancer_pt7 TEXT DEFAULT 'pending',
+            step_enhancer_pt8 TEXT DEFAULT 'pending',
+            step_enhancer_pt9 TEXT DEFAULT 'pending',
+            step_enhancer_pt10 TEXT DEFAULT 'pending',
+            step_enhancer_pt11 TEXT DEFAULT 'pending',
+            step_enhancer_pt12 TEXT DEFAULT 'pending',
+            step_enhancer_pt13 TEXT DEFAULT 'pending',
+            step_enhancer_pt14 TEXT DEFAULT 'pending',
+            step_enhancer_pt15 TEXT DEFAULT 'pending',
+            step_enhancer_pt16 TEXT DEFAULT 'pending',
+            step_enhancer_pt17 TEXT DEFAULT 'pending',
+            step_enhancer_pt18 TEXT DEFAULT 'pending',
+            step_enhancer_pt19 TEXT DEFAULT 'pending',
+            step_enhancer_pt20 TEXT DEFAULT 'pending',
+            step_enhancer_pt21 TEXT DEFAULT 'pending',
+            step_enhancer_pt22 TEXT DEFAULT 'pending',
+            step_enhancer_pt23 TEXT DEFAULT 'pending',
+            step_enhancer_pt24 TEXT DEFAULT 'pending',
+            step_enhancer_pt25 TEXT DEFAULT 'pending',
+            step_enhancer_pt26 TEXT DEFAULT 'pending',
+            step_enhancer_pt27 TEXT DEFAULT 'pending',
+            step_enhancer_pt28 TEXT DEFAULT 'pending',
+            step_enhancer_pt29 TEXT DEFAULT 'pending',
+            step_enhancer_pt30 TEXT DEFAULT 'pending',
             step_session_created TEXT DEFAULT 'pending',
             step_config_ready TEXT DEFAULT 'pending',
+            step_render_pt0 TEXT DEFAULT 'pending',
             step_render_pt1 TEXT DEFAULT 'pending',
             step_render_pt2 TEXT DEFAULT 'pending',
             step_render_pt3 TEXT DEFAULT 'pending',
             step_render_pt4 TEXT DEFAULT 'pending',
             step_render_pt5 TEXT DEFAULT 'pending',
+            step_render_pt6 TEXT DEFAULT 'pending',
+            step_render_pt7 TEXT DEFAULT 'pending',
+            step_render_pt8 TEXT DEFAULT 'pending',
+            step_render_pt9 TEXT DEFAULT 'pending',
+            step_render_pt10 TEXT DEFAULT 'pending',
+            step_render_pt11 TEXT DEFAULT 'pending',
+            step_render_pt12 TEXT DEFAULT 'pending',
+            step_render_pt13 TEXT DEFAULT 'pending',
+            step_render_pt14 TEXT DEFAULT 'pending',
+            step_render_pt15 TEXT DEFAULT 'pending',
+            step_render_pt16 TEXT DEFAULT 'pending',
+            step_render_pt17 TEXT DEFAULT 'pending',
+            step_render_pt18 TEXT DEFAULT 'pending',
+            step_render_pt19 TEXT DEFAULT 'pending',
+            step_render_pt20 TEXT DEFAULT 'pending',
+            step_render_pt21 TEXT DEFAULT 'pending',
+            step_render_pt22 TEXT DEFAULT 'pending',
+            step_render_pt23 TEXT DEFAULT 'pending',
+            step_render_pt24 TEXT DEFAULT 'pending',
+            step_render_pt25 TEXT DEFAULT 'pending',
+            step_render_pt26 TEXT DEFAULT 'pending',
+            step_render_pt27 TEXT DEFAULT 'pending',
+            step_render_pt28 TEXT DEFAULT 'pending',
+            step_render_pt29 TEXT DEFAULT 'pending',
+            step_render_pt30 TEXT DEFAULT 'pending',
             step_merge TEXT DEFAULT 'pending',
+            video_parts INTEGER DEFAULT 5,
             
             -- Metadados
             drive_folder_path TEXT,
@@ -69,11 +153,12 @@ def init_db():
             thumbnail_enabled BOOLEAN DEFAULT TRUE,
             bg_audio BOOLEAN DEFAULT FALSE,
             srt_type TEXT DEFAULT 'normal',
-            azure_enabled BOOLEAN DEFAULT TRUE,
             
             started_at TIMESTAMPTZ,
             completed_at TIMESTAMPTZ
         );
+
+
 
         -- Tabela de log genérico
         CREATE TABLE IF NOT EXISTS pipeline_logs (
@@ -143,14 +228,43 @@ def _migrate_db():
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt3 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt4 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt5 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt6 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt7 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt8 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt9 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt10 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt0 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt3 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt4 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt5 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt6 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt7 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt8 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt9 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt10 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt0 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt3 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt4 TEXT DEFAULT 'pending'",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt5 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt6 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt7 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt8 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt9 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt10 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_omni_main TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_omni_tts_pt1 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_omni_tts_pt2 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_omni_tts_pt3 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_omni_tts_pt4 TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_omni_assemble TEXT DEFAULT 'pending'",
+        "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS video_parts INTEGER DEFAULT 5",
         "ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS azure_enabled BOOLEAN DEFAULT TRUE",
     ]
+    for i in range(11, 31):
+        migrations.append(f"ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_watermark_pt{i} TEXT DEFAULT 'pending'")
+        migrations.append(f"ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_enhancer_pt{i} TEXT DEFAULT 'pending'")
+        migrations.append(f"ALTER TABLE pipeline_projects ADD COLUMN IF NOT EXISTS step_render_pt{i} TEXT DEFAULT 'pending'")
+        
     for sql in migrations:
         try:
             cur.execute(sql)
@@ -182,7 +296,7 @@ def create_project(project_name: str, chat_id: str) -> dict:
 
 
 def set_project_opts(project_id: str, manual_mode: bool, thumbnail_enabled: bool, bg_audio: bool = False, srt_type: str = 'normal', azure_enabled: bool = True):
-    """Salva as opções de modo, thumbnail, processamento de áudio/legenda e Azure do projeto."""
+    """Salva as opções de modo, thumbnail e processamento de áudio/legenda do projeto."""
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -395,6 +509,14 @@ def cell_end(project_id: str, notebook: str, cell_index: int,
         WHERE project_id = %s::uuid AND notebook = %s AND cell_index = %s
     """, (status, message, project_id, notebook, cell_index))
 
+    # Se for a conclusão do omni-assemble, atualiza o step_omni para 'done' na tabela pipeline_projects
+    if status == "done" and (notebook == "omni-assemble" or "assemble" in str(notebook).lower()):
+        try:
+            cur.execute("UPDATE pipeline_projects SET step_omni = 'done' WHERE id = %s::uuid", (project_id,))
+            print(f"[{project_id}] cell_end: omni-assemble concluído. step_omni atualizado para 'done'.")
+        except Exception as e_omni:
+            print(f"[{project_id}] Erro ao atualizar step_omni no cell_end: {e_omni}")
+
     conn.commit()
     cur.close()
     conn.close()
@@ -443,16 +565,35 @@ def format_status(project: dict) -> str:
         "error": "❌"
     }
 
+    video_parts = project.get("video_parts", 5) or 5
     steps = [
         ("step_upload", "Upload & Preparação"),
-        ("step_split", "Divisão em 5 partes"),
-        ("step_omni", "Omni-Anime-Ver"),
+        ("step_split", f"Divisão em {video_parts} partes"),
+        ("step_omni", "Omni (Geral)"),
+        ("step_omni_main", "  ├ 🧠 Omni-Main (Trad/Divisão)"),
+        ("step_omni_tts_pt1", "  ├ 🎙️ Omni TTS PT1"),
+        ("step_omni_tts_pt2", "  ├ 🎙️ Omni TTS PT2"),
+        ("step_omni_tts_pt3", "  ├ 🎙️ Omni TTS PT3"),
+        ("step_omni_tts_pt4", "  ├ 🎙️ Omni TTS PT4"),
+        ("step_omni_assemble", "  └ 🎼 Omni Assemble (Legenda/Audio)"),
     ]
-    for i in range(1, 6): steps.append((f"step_watermark_pt{i}", f"Watermark PT{i}"))
-    for i in range(1, 6): steps.append((f"step_enhancer_pt{i}", f"Enhancer PT{i}"))
+        
+    for i in range(1, video_parts + 1):
+        steps.append((f"step_watermark_pt{i}", f"Watermark PT{i}"))
+        
+    if project.get("step_enhancer_pt0") and project.get("step_enhancer_pt0") != "pending":
+        steps.append(("step_enhancer_pt0", "Enhancer PT0 (Intro)"))
+    for i in range(1, video_parts + 1):
+        steps.append((f"step_enhancer_pt{i}", f"Enhancer PT{i}"))
+        
     steps.append(("step_session_created", "Sessão VideoRender"))
     steps.append(("step_config_ready", "Config Pronta"))
-    for i in range(1, 6): steps.append((f"step_render_pt{i}", f"Render PT{i}"))
+    
+    if project.get("step_render_pt0") and project.get("step_render_pt0") != "pending":
+        steps.append(("step_render_pt0", "Render PT0 (Intro)"))
+    for i in range(1, video_parts + 1):
+        steps.append((f"step_render_pt{i}", f"Render PT{i}"))
+        
     steps.append(("step_merge", "Merge Final"))
 
     lines = [

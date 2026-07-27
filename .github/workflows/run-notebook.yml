@@ -2,24 +2,6 @@ name: Run Kaggle Notebook
 
 on:
   repository_dispatch:
-    types:
-      - run-wm-pt1
-      - run-wm-pt2
-      - run-wm-pt3
-      - run-wm-pt4
-      - run-wm-pt5
-      - run-enhancer-pt1
-      - run-enhancer-pt2
-      - run-enhancer-pt3
-      - run-enhancer-pt4
-      - run-enhancer-pt5
-      - run-omni
-      - run-render-pt1
-      - run-render-pt2
-      - run-render-pt3
-      - run-render-pt4
-      - run-render-pt5
-      - run-merge
 
 jobs:
   run-notebook:
@@ -51,6 +33,16 @@ jobs:
           KAGGLE_KEY_5: ${{ secrets.KAGGLE_KEY_5 }}
           KAGGLE_USERNAME_6: ${{ secrets.KAGGLE_USERNAME_6 }}
           KAGGLE_KEY_6: ${{ secrets.KAGGLE_KEY_6 }}
+          KAGGLE_USERNAME_7: ${{ secrets.KAGGLE_USERNAME_7 }}
+          KAGGLE_KEY_7: ${{ secrets.KAGGLE_KEY_7 }}
+          KAGGLE_USERNAME_8: ${{ secrets.KAGGLE_USERNAME_8 }}
+          KAGGLE_KEY_8: ${{ secrets.KAGGLE_KEY_8 }}
+          KAGGLE_USERNAME_9: ${{ secrets.KAGGLE_USERNAME_9 }}
+          KAGGLE_KEY_9: ${{ secrets.KAGGLE_KEY_9 }}
+          KAGGLE_USERNAME_10: ${{ secrets.KAGGLE_USERNAME_10 }}
+          KAGGLE_KEY_10: ${{ secrets.KAGGLE_KEY_10 }}
+          KAGGLE_USERNAME_11: ${{ secrets.KAGGLE_USERNAME_11 }}
+          KAGGLE_KEY_11: ${{ secrets.KAGGLE_KEY_11 }}
         run: |
           ACCOUNT_NUM=${{ github.event.client_payload.kaggle_account }}
           echo "🔑 Usando conta Kaggle #${ACCOUNT_NUM}"
@@ -82,9 +74,6 @@ jobs:
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
-          SRT_TYPE: ${{ github.event.client_payload.srt_type }}
-          BG_AUDIO: ${{ github.event.client_payload.bg_audio }}
-          AZURE_ENABLED: ${{ github.event.client_payload.azure_enabled }}
         run: |
           echo "📓 Notebook: ${NOTEBOOK}"
           echo "👤 Conta: ${KAGGLE_USER}"
@@ -99,8 +88,8 @@ jobs:
           python3 -c "
           import json
           meta = {
-            'id': '${KAGGLE_USER}/${NOTEBOOK}-v7',
-            'title': '${NOTEBOOK}-v7',
+            'id': '${KAGGLE_USER}/${NOTEBOOK}',
+            'title': '${NOTEBOOK}',
             'code_file': '${NOTEBOOK}.ipynb',
             'language': 'python',
             'kernel_type': 'notebook',

@@ -12,47 +12,55 @@ load_dotenv()
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "custodiio/drama-pipeline")
 
-# Mapeamento: notebook -> conta Kaggle
+NOTEBOOK_PREFIX = os.getenv("NOTEBOOK_PREFIX", "drama")
+
+# Mapeamento: notebook -> conta Kaggle (1 a 11)
+# Contas de processamento disponíveis para Watermark, Enhancer e Render (7 no total)
+avail_accounts = [1, 2, 4, 5, 6, 7, 9]
+
 ACCOUNT_MAP = {
-    "wm-pt1": 1,
-    "wm-pt2": 2,
-    "wm-pt3": 4,
-    "wm-pt4": 5,
-    "wm-pt5": 6,
-    "enhancer-pt1": 1,
-    "enhancer-pt2": 2,
-    "enhancer-pt3": 4,
-    "enhancer-pt4": 5,
-    "enhancer-pt5": 6,
     "omni": 3,
-    "render-pt1": 1,
-    "render-pt2": 2,
-    "render-pt3": 4,
-    "render-pt4": 5,
-    "render-pt5": 6,
+    "omni-main": 3,
+    "omni-tts-pt1": 3,
+    "omni-tts-pt2": 8,
+    "omni-tts-pt3": 10,
+    "omni-tts-pt4": 11,
+    "omni-assemble": 3,
+    
+    "enhancer-pt0": 3,
+    "render-pt0": 3,
+    
     "merge": 6,
 }
 
-# Notebooks Kaggle por nome
 NOTEBOOK_MAP = {
-    "wm-pt1": "watermark-remover-pt-1",
-    "wm-pt2": "watermark-remover-pt-2",
-    "wm-pt3": "watermark-remover-pt-3",
-    "wm-pt4": "watermark-remover-pt-4",
-    "wm-pt5": "watermark-remover-pt-5",
-    "enhancer-pt1": "video-enhancer-pt-1",
-    "enhancer-pt2": "video-enhancer-pt-2",
-    "enhancer-pt3": "video-enhancer-pt-3",
-    "enhancer-pt4": "video-enhancer-pt-4",
-    "enhancer-pt5": "video-enhancer-pt-5",
-    "omni": "omni-drama-ver-final",
-    "render-pt1": "renderizador-kaggle-pt-1",
-    "render-pt2": "renderizador-kaggle-pt-2",
-    "render-pt3": "renderizador-kaggle-pt-3",
-    "render-pt4": "renderizador-kaggle-pt-4",
-    "render-pt5": "renderizador-kaggle-pt-5",
-    "merge": "merge-final",
+    "omni": f"{NOTEBOOK_PREFIX}-omni-main",
+    "omni-main": f"{NOTEBOOK_PREFIX}-omni-main",
+    "omni-tts-pt1": f"{NOTEBOOK_PREFIX}-omni-tts-pt1",
+    "omni-tts-pt2": f"{NOTEBOOK_PREFIX}-omni-tts-pt2",
+    "omni-tts-pt3": f"{NOTEBOOK_PREFIX}-omni-tts-pt3",
+    "omni-tts-pt4": f"{NOTEBOOK_PREFIX}-omni-tts-pt4",
+    "omni-assemble": f"{NOTEBOOK_PREFIX}-omni-assemble",
+    
+    "enhancer-pt0": f"{NOTEBOOK_PREFIX}-video-enhancer-pt-0",
+    "render-pt0": f"{NOTEBOOK_PREFIX}-renderizador-kaggle-pt-0",
+    
+    "merge": f"{NOTEBOOK_PREFIX}-merge-final",
 }
+
+# Preencher dinamicamente mapeamento de 1 a 30 partes
+for i in range(1, 31):
+    acc = avail_accounts[(i - 1) % len(avail_accounts)]
+    
+    ACCOUNT_MAP[f"wm-pt{i}"] = acc
+    NOTEBOOK_MAP[f"wm-pt{i}"] = f"{NOTEBOOK_PREFIX}-watermark-remover-pt-{i}"
+    
+    ACCOUNT_MAP[f"enhancer-pt{i}"] = acc
+    NOTEBOOK_MAP[f"enhancer-pt{i}"] = f"{NOTEBOOK_PREFIX}-video-enhancer-pt-{i}"
+    
+    ACCOUNT_MAP[f"render-pt{i}"] = acc
+    NOTEBOOK_MAP[f"render-pt{i}"] = f"{NOTEBOOK_PREFIX}-renderizador-kaggle-pt-{i}"
+
 
 
 def dispatch_workflow(task, project_id, extra_payload=None):

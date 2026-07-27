@@ -12,6 +12,8 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
+import threading
+
 # Caminhos padronizados no Drive
 DRIVE_BASE = "DRAMA/PIPELINE"
 DRIVE_ATIVO = f"{DRIVE_BASE}/ATIVO"
@@ -31,6 +33,7 @@ class DriveManager:
         self.client_id = client_id or os.getenv("DRIVE_CLIENT_ID", "")
         self.client_secret = client_secret or os.getenv("DRIVE_CLIENT_SECRET", "")
         self.service = None
+        self._lock = threading.RLock()
         self._authenticate()
 
     def _authenticate(self):
@@ -58,35 +61,37 @@ class DriveManager:
 
     def _buscar_id(self, caminho_no_drive):
         """Resolve caminho do Drive para file ID."""
-        partes = caminho_no_drive.strip("/").split("/")
-        parent_id = "root"
-        for parte in partes:
-            query = f"name='{self._esc(parte)}' and '{parent_id}' in parents and trashed=false"
-            # Adicionado orderBy para garantir que arquivos mais novos fiquem no topo se houver duplicidade
-            results = self.service.files().list(q=query, fields="files(id, mimeType)", orderBy="modifiedTime desc").execute()
-            arquivos = results.get("files", [])
-            if not arquivos:
-                return None
-            parent_id = arquivos[0]["id"]
-        return parent_id
+        with self._lock:
+            partes = caminho_no_drive.strip("/").split("/")
+            parent_id = "root"
+            for parte in partes:
+                query = f"name='{self._esc(parte)}' and '{parent_id}' in parents and trashed=false"
+                # Adicionado orderBy para garantir que arquivos mais novos fiquem no topo se houver duplicidade
+                results = self.service.files().list(q=query, fields="files(id, mimeType)", orderBy="modifiedTime desc").execute()
+                arquivos = results.get("files", [])
+                if not arquivos:
+                    return None
+                parent_id = arquivos[0]["id"]
+            return parent_id
 
     def _garantir_pasta(self, caminho_pasta):
         """Garante que a hierarquia de pastas existe, criando se necessario."""
-        partes = caminho_pasta.strip("/").split("/")
-        parent_id = "root"
-        for pasta in partes:
-            query = f"name='{self._esc(pasta)}' and '{parent_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'"
-            results = self.service.files().list(q=query, fields="files(id)").execute()
-            existentes = results.get("files", [])
-            if existentes:
-                parent_id = existentes[0]["id"]
-            else:
-                nova = self.service.files().create(
-                    body={"name": pasta, "mimeType": "application/vnd.google-apps.folder", "parents": [parent_id]},
-                    fields="id"
-                ).execute()
-                parent_id = nova["id"]
-        return parent_id
+        with self._lock:
+            partes = caminho_pasta.strip("/").split("/")
+            parent_id = "root"
+            for pasta in partes:
+                query = f"name='{self._esc(pasta)}' and '{parent_id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'"
+                results = self.service.files().list(q=query, fields="files(id)").execute()
+                existentes = results.get("files", [])
+                if existentes:
+                    parent_id = existentes[0]["id"]
+                else:
+                    nova = self.service.files().create(
+                        body={"name": pasta, "mimeType": "application/vnd.google-apps.folder", "parents": [parent_id]},
+                        fields="id"
+                    ).execute()
+                    parent_id = nova["id"]
+            return parent_id
 
     def baixar(self, caminho_drive, destino_local):
         """Baixa arquivo do Drive para local."""
@@ -112,40 +117,72 @@ class DriveManager:
             print(f"  Erro ao baixar {caminho_drive}: {e}")
             return False
 
+    def baixar_por_id(self, file_id, destino_local):
+        """Baixa um arquivo do Drive diretamente pelo file_id."""
+        if not self.service or not file_id:
+            return False
+        try:
+            request = self.service.files().get_media(fileId=file_id)
+            os.makedirs(os.path.dirname(destino_local) or ".", exist_ok=True)
+            with open(destino_local, "wb") as fh:
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+            print(f"  Baixado por ID ({file_id}): {destino_local}")
+            return True
+        except Exception as e:
+            print(f"  Erro ao baixar por ID ({file_id}): {e}")
+            return False
+
+    def upload(self, caminho_local, caminho_drive):
+        """Alias para salvar."""
+        return self.salvar(caminho_local, caminho_drive)
+
     def salvar(self, caminho_local, caminho_drive):
         """Salva arquivo local no Drive (cria ou atualiza)."""
         if not self.service or not os.path.exists(caminho_local):
             return False
-        try:
-            partes = caminho_drive.strip("/").split("/")
-            nome_arquivo = partes[-1]
-            pasta_drive = "/".join(partes[:-1]) if len(partes) > 1 else ""
-            parent_id = self._garantir_pasta(pasta_drive) if pasta_drive else "root"
+        with self._lock:
+            try:
+                partes = caminho_drive.strip("/").split("/")
+                nome_arquivo = partes[-1]
+                pasta_drive = "/".join(partes[:-1]) if len(partes) > 1 else ""
+                parent_id = self._garantir_pasta(pasta_drive) if pasta_drive else "root"
 
-            query = f"name='{self._esc(nome_arquivo)}' and '{parent_id}' in parents and trashed=false"
-            results = self.service.files().list(q=query, fields="files(id)", orderBy="modifiedTime desc").execute()
-            existentes = results.get("files", [])
-            media = MediaFileUpload(caminho_local, resumable=True)
+                query = f"'{parent_id}' in parents and trashed=false"
+                results = self.service.files().list(q=query, fields="files(id, name)", orderBy="modifiedTime desc").execute()
+                existentes = [f for f in results.get("files", []) if f["name"] == nome_arquivo]
+                media = MediaFileUpload(caminho_local, resumable=True, chunksize=5*1024*1024)
 
-            if existentes:
-                self.service.files().update(fileId=existentes[0]["id"], media_body=media).execute()
-                # Limpar quaisquer arquivos duplicados adicionais mais antigos com o mesmo nome
-                for ext in existentes[1:]:
+                for tentativa in range(3):
                     try:
-                        self.service.files().delete(fileId=ext["id"]).execute()
-                        print(f"  Deletado duplicado histórico do arquivo no salvar: {caminho_drive} (ID: {ext['id']})")
-                    except Exception as ed:
-                        print(f"  Erro ao deletar duplicado antigo no salvar: {ed}")
-            else:
-                self.service.files().create(
-                    body={"name": nome_arquivo, "parents": [parent_id]},
-                    media_body=media, fields="id"
-                ).execute()
-            print(f"  Salvo: {caminho_drive}")
-            return True
-        except Exception as e:
-            print(f"  Erro ao salvar {caminho_drive}: {e}")
-            return False
+                        if existentes:
+                            self.service.files().update(fileId=existentes[0]["id"], media_body=media).execute()
+                            # Limpar quaisquer arquivos duplicados adicionais mais antigos com o mesmo nome
+                            for ext in existentes[1:]:
+                                try:
+                                    self.service.files().delete(fileId=ext["id"]).execute()
+                                    print(f"  Deletado duplicado histórico do arquivo no salvar: {caminho_drive} (ID: {ext['id']})")
+                                except Exception as ed:
+                                    print(f"  Erro ao deletar duplicado antigo no salvar: {ed}")
+                        else:
+                            self.service.files().create(
+                                body={"name": nome_arquivo, "parents": [parent_id]},
+                                media_body=media, fields="id"
+                            ).execute()
+                        break
+                    except Exception as ex_up:
+                        if tentativa == 2:
+                            raise ex_up
+                        import time
+                        print(f"  [RETRY {tentativa+1}/3] Falha temporária no upload de {nome_arquivo}: {ex_up}")
+                        time.sleep(2)
+                print(f"  Salvo: {caminho_drive}")
+                return True
+            except Exception as e:
+                print(f"  Erro ao salvar {caminho_drive}: {e}")
+                return False
 
     def listar_arquivos(self, caminho_pasta):
         """Lista arquivos em uma pasta do Drive."""
@@ -156,7 +193,7 @@ class DriveManager:
             return []
         results = self.service.files().list(
             q=f"'{folder_id}' in parents and trashed=false",
-            fields="files(id, name, mimeType, size)"
+            fields="files(id, name, mimeType, size, modifiedTime)"
         ).execute()
         return results.get("files", [])
 
@@ -249,7 +286,7 @@ class DriveManager:
         """
         if not self.service:
             return
-        # 1. Limpar arquivos soltos na raiz do AUDIO_DUB (transcrições, roteiros, guias)
+        # 1. Limpar arquivos soltos na raiz do AUDIO_DUB (transcrições, roteiros, zips, guias)
         try:
             arqs_raiz = self.listar_arquivos("DRAMA/AUDIO_DUB")
             for arq in arqs_raiz:
@@ -257,8 +294,8 @@ class DriveManager:
                 # Proteger pastas (INPUT, OUTPUT, CLONAGEM, etc)
                 if arq.get("mimeType") == "application/vnd.google-apps.folder":
                     continue
-                # Foca apenas em arquivos soltos que o omni gera (.json, .txt)
-                if nome.endswith(".json") or nome.endswith(".txt"):
+                # Apagar qualquer arquivo solto que o omni gera (.json, .txt, .zip, .srt, .ass)
+                if nome.endswith(".json") or nome.endswith(".txt") or nome.endswith(".zip") or nome.endswith(".srt") or nome.endswith(".ass"):
                     try:
                         self.service.files().delete(fileId=arq["id"]).execute()
                         print(f"  Resquício removido da raiz: {arq['name']}")
@@ -282,7 +319,7 @@ class DriveManager:
         # 3. Limpar pasta INPUT (áudio antigo do projeto anterior)
         #    PRESERVA: subpasta CLONAGEM (contém áudio de referência de voz)
         try:
-            arqs = self.listar_arquivos("KAGGLE/AUDIO_DUB/INPUT")
+            arqs = self.listar_arquivos("DRAMA/AUDIO_DUB/INPUT")
             for arq in arqs:
                 # Proteger a pasta CLONAGEM
                 if arq.get("mimeType") == "application/vnd.google-apps.folder":
@@ -290,7 +327,7 @@ class DriveManager:
                     continue
                 try:
                     self.service.files().delete(fileId=arq["id"]).execute()
-                    print(f"  Input antigo removido: KAGGLE/AUDIO_DUB/INPUT/{arq['name']}")
+                    print(f"  Input antigo removido: DRAMA/AUDIO_DUB/INPUT/{arq['name']}")
                 except Exception:
                     pass
         except Exception:
@@ -320,6 +357,11 @@ def split_video(input_path, output_dir, parts=5):
     Retorna uma lista com os caminhos dos arquivos gerados.
     """
     os.makedirs(output_dir, exist_ok=True)
+    # Limpar cortes locais antigos para evitar reaproveitar vídeos do projeto anterior
+    for f in os.listdir(output_dir):
+        if f.startswith("video_pt") or f == "split_info.json":
+            try: os.remove(os.path.join(output_dir, f))
+            except: pass
 
     result = subprocess.run(
         [FFPROBE, "-v", "error", "-show_entries", "format=duration",
@@ -335,6 +377,12 @@ def split_video(input_path, output_dir, parts=5):
         pt_path = os.path.join(output_dir, f"video_pt{i+1}.mp4")
         start_time = i * part_duration
         
+        # Se a parte já foi gerada anteriormente e tem tamanho válido, reaproveita
+        if os.path.exists(pt_path) and os.path.getsize(pt_path) > 1000:
+            print(f"  Reaproveitando parte já dividida: video_pt{i+1}.mp4")
+            paths.append(pt_path)
+            continue
+
         cmd = [
             FFMPEG, "-y", "-ss", str(start_time), "-i", input_path
         ]
@@ -343,11 +391,16 @@ def split_video(input_path, output_dir, parts=5):
             cmd.extend(["-t", str(part_duration)])
             
         cmd.extend([
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-c:a", "copy",
+            "-c:v", "libx264", "-preset", "superfast", "-crf", "18", "-c:a", "aac",
+            "-avoid_negative_ts", "make_zero",
             pt_path
         ])
         
-        subprocess.run(cmd, check=True, capture_output=True)
+        res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        if res.returncode != 0:
+            err_msg = res.stderr.decode("utf-8", errors="ignore")
+            print(f"  ❌ Erro no FFmpeg ao dividir parte {i+1}: {err_msg}")
+            raise RuntimeError(f"FFmpeg falhou ao dividir parte {i+1}: {err_msg}")
         paths.append(pt_path)
 
     import json

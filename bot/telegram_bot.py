@@ -126,17 +126,71 @@ controller = PipelineController()
 user_uploads = {}  # chat_id -> {"video": path, "audio": path, "mask": path}
 active_sessions = {}  # session_token -> {"project_id": ..., "chat_id": ..., "created_at": ...}
 
+PREFERENCES_FILE = os.path.join(os.path.dirname(__file__), "user_preferences.json")
+
+def load_user_preferences(chat_id):
+    defaults = {
+        "watermark": True,
+        "enhancer": False,
+        "thumbnail": True,
+        "manual_mode": False,
+        "bg_audio": False,
+        "srt_type": "normal",
+        "azure_enabled": True
+    }
+    if os.path.exists(PREFERENCES_FILE):
+        try:
+            with open(PREFERENCES_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                chat_prefs = data.get(str(chat_id))
+                if chat_prefs and isinstance(chat_prefs, dict):
+                    defaults.update(chat_prefs)
+        except Exception:
+            pass
+    return defaults
+
+def save_user_preferences(chat_id, prefs):
+    data = {}
+    if os.path.exists(PREFERENCES_FILE):
+        try:
+            with open(PREFERENCES_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+    
+    chat_str = str(chat_id)
+    if chat_str not in data:
+        data[chat_str] = {}
+        
+    for k in ["watermark", "enhancer", "thumbnail", "manual_mode", "bg_audio", "srt_type", "azure_enabled"]:
+        if k in prefs:
+            data[chat_str][k] = prefs[k]
+            
+    try:
+        with open(PREFERENCES_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Erro ao salvar preferências do usuário: {e}")
+
 # Mapeamento de step -> nome amigável
 STEP_LABELS = {
-    "step_watermark_pt1": "🧹 WM PT1",
-    "step_watermark_pt2": "🧹 WM PT2",
-    "step_enhancer_pt1": "⚡ Enhancer PT1",
-    "step_enhancer_pt2": "⚡ Enhancer PT2",
-    "step_omni": "🧠 Omni",
-    "step_render_pt1": "🎬 Render PT1",
-    "step_render_pt2": "🎬 Render PT2",
+    "step_upload": "📤 Upload",
+    "step_split": "✂️ Divisão",
+    "step_omni": "🧠 Omni Geral",
+    "step_omni_main": "  ├ 🧠 Omni-Main",
+    "step_omni_tts_pt1": "  ├ 🎙️ Omni TTS PT1",
+    "step_omni_tts_pt2": "  ├ 🎙️ Omni TTS PT2",
+    "step_omni_tts_pt3": "  ├ 🎙️ Omni TTS PT3",
+    "step_omni_tts_pt4": "  ├ 🎙️ Omni TTS PT4",
+    "step_omni_assemble": "  └ 🎼 Omni Assemble",
     "step_merge": "📦 Merge Final",
 }
+for i in range(1, 31):
+    STEP_LABELS[f"step_watermark_pt{i}"] = f"🧹 WM PT{i}"
+    STEP_LABELS[f"step_enhancer_pt{i}"] = f"⚡ Enhancer PT{i}"
+    STEP_LABELS[f"step_render_pt{i}"] = f"🎬 Render PT{i}"
+STEP_LABELS["step_enhancer_pt0"] = "⚡ Enhancer PT0 (Intro)"
+STEP_LABELS["step_render_pt0"] = "🎬 Render PT0 (Intro)"
 
 STATUS_ICONS = {
     "pending": "⏳",
@@ -718,47 +772,52 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             
         user_uploads[chat_id]["name"] = f"Projeto_{chat_id[:6]}"
         user_uploads[chat_id]["local"] = False
-        user_uploads[chat_id]["watermark"] = True
-        user_uploads[chat_id]["enhancer"] = False
-        user_uploads[chat_id]["thumbnail"] = True
+        user_uploads[chat_id].update(load_user_preferences(chat_id))
         user_uploads[chat_id]["manual_mode"] = (data == "new_manual")
-        user_uploads[chat_id]["azure_enabled"] = True
+        save_user_preferences(chat_id, user_uploads[chat_id])
         await send_config_menu(None, chat_id, query)
         
     elif data == "toggle_wm":
         if chat_id in user_uploads:
             user_uploads[chat_id]["watermark"] = not user_uploads[chat_id].get("watermark", True)
+            save_user_preferences(chat_id, user_uploads[chat_id])
             await send_config_menu(None, chat_id, query)
             
     elif data == "toggle_enhancer":
         if chat_id in user_uploads:
             user_uploads[chat_id]["enhancer"] = not user_uploads[chat_id].get("enhancer", False)
+            save_user_preferences(chat_id, user_uploads[chat_id])
             await send_config_menu(None, chat_id, query)
 
     elif data == "toggle_thumbnail":
         if chat_id in user_uploads:
             user_uploads[chat_id]["thumbnail"] = not user_uploads[chat_id].get("thumbnail", True)
+            save_user_preferences(chat_id, user_uploads[chat_id])
             await send_config_menu(None, chat_id, query)
 
     elif data == "toggle_mode":
         if chat_id in user_uploads:
             user_uploads[chat_id]["manual_mode"] = not user_uploads[chat_id].get("manual_mode", False)
+            save_user_preferences(chat_id, user_uploads[chat_id])
             await send_config_menu(None, chat_id, query)
             
     elif data == "toggle_bgaudio":
         if chat_id in user_uploads:
             user_uploads[chat_id]["bg_audio"] = not user_uploads[chat_id].get("bg_audio", False)
+            save_user_preferences(chat_id, user_uploads[chat_id])
             await send_config_menu(None, chat_id, query)
 
     elif data == "toggle_srt":
         if chat_id in user_uploads:
             current_srt = user_uploads[chat_id].get("srt_type", "normal")
             user_uploads[chat_id]["srt_type"] = "word_by_word" if current_srt == "normal" else "normal"
+            save_user_preferences(chat_id, user_uploads[chat_id])
             await send_config_menu(None, chat_id, query)
             
     elif data == "toggle_azure":
         if chat_id in user_uploads:
             user_uploads[chat_id]["azure_enabled"] = not user_uploads[chat_id].get("azure_enabled", True)
+            save_user_preferences(chat_id, user_uploads[chat_id])
             await send_config_menu(None, chat_id, query)
             
     elif data == "start_project":
@@ -767,6 +826,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
             
         opts = user_uploads[chat_id]
+        save_user_preferences(chat_id, opts)
         
         await query.edit_message_text(
             f"🚀 Iniciando projeto: *{opts['name']}*\n"
@@ -980,7 +1040,20 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
 
-    elif data == "trigger_omni":
+    elif data == "trigger_omni" or data == "trigger_omni_menu":
+        buttons = [
+            [InlineKeyboardButton("🧠 Omni-Main (Trad/Divisão)", callback_data="trigger_omni_main")],
+            [InlineKeyboardButton("🎙️ TTS PT1", callback_data="trigger_omni_tts_1"),
+             InlineKeyboardButton("🎙️ TTS PT2", callback_data="trigger_omni_tts_2")],
+            [InlineKeyboardButton("🎙️ TTS PT3", callback_data="trigger_omni_tts_3"),
+             InlineKeyboardButton("🎙️ TTS PT4", callback_data="trigger_omni_tts_4")],
+            [InlineKeyboardButton("🎙️ Todos os TTS (PT1-4)", callback_data="trigger_omni_tts_all")],
+            [InlineKeyboardButton("🎼 Omni Assemble (Legenda)", callback_data="trigger_omni_assemble")],
+            [InlineKeyboardButton("🔙 Voltar", callback_data="trigger_menu")]
+        ]
+        await query.edit_message_text("🎙️ *Menu de Disparo Omni*\nEscolha a etapa do Omni que deseja iniciar:", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(buttons))
+
+    elif data == "trigger_omni_main":
         project = get_active_project(chat_id)
         if project:
             pid = str(project["id"])
@@ -989,23 +1062,50 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await query.answer(err, show_alert=True)
                 return
             controller.disparar_omni_imediatamente(pid)
-            await query.edit_message_text("🚀 Omni disparado!")
+            await query.edit_message_text("🚀 *Omni-Main* disparado com sucesso!")
+
+    elif data.startswith("trigger_omni_tts_"):
+        project = get_active_project(chat_id)
+        if project:
+            pid = str(project["id"])
+            part = data.replace("trigger_omni_tts_", "")
+            from bot.github_actions import dispatch_parallel
+            from bot.database import update_step
+            if part == "all":
+                update_step(pid, "step_omni", "tts_running")
+                dispatch_parallel(["omni-tts-pt1", "omni-tts-pt2", "omni-tts-pt3", "omni-tts-pt4"], pid)
+                await query.edit_message_text("🚀 *Todos os 4 TTS Paralelos* foram disparados!")
+            else:
+                update_step(pid, "step_omni", "tts_running")
+                update_step(pid, f"step_omni_tts_pt{part}", "running")
+                dispatch_parallel([f"omni-tts-pt{part}"], pid)
+                await query.edit_message_text(f"🚀 *Omni TTS PT{part}* disparado com sucesso!")
+
+    elif data == "trigger_omni_assemble":
+        project = get_active_project(chat_id)
+        if project:
+            pid = str(project["id"])
+            from bot.github_actions import dispatch_workflow
+            from bot.database import update_step
+            update_step(pid, "step_omni", "assembling")
+            dispatch_workflow("omni-assemble", pid, extra_payload={"task_key": "omni-assemble"})
+            await query.edit_message_text("🚀 *Omni Assemble* disparado com sucesso!")
 
     elif data == "trigger_merge":
         project = get_active_project(chat_id)
         if project:
             pid = str(project["id"])
-            ok, err = controller.check_merge_ready()
-            if not ok:
-                await query.answer(err, show_alert=True)
-                return
             controller.disparar_merge(pid)
-            await query.edit_message_text("🚀 Merge disparado!")
+            await query.edit_message_text("🚀 *Merge Final* disparado com sucesso!", parse_mode="Markdown")
 
     elif data in ["trigger_wm_menu", "trigger_enhancer_menu", "trigger_render_menu"]:
+        project = get_active_project(chat_id)
+        video_parts = project.get("video_parts", 5) if project else 5
         prefix = data.replace("_menu", "")
         buttons = []
-        for i in range(1, 6):
+        # Para Enhancer e Render, a parte 0 (introdução) existe
+        start_idx = 0 if prefix in ["trigger_enhancer", "trigger_render"] else 1
+        for i in range(start_idx, video_parts + 1):
             buttons.append([InlineKeyboardButton(f"Parte {i}", callback_data=f"{prefix}_{i}")])
         buttons.append([InlineKeyboardButton("Todas as Partes", callback_data=f"{prefix}_all")])
         buttons.append([InlineKeyboardButton("🔙 Voltar", callback_data="trigger_menu")])
@@ -1016,15 +1116,20 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         project = get_active_project(chat_id)
         if not project: return
         pid = str(project["id"])
-        ok, err = controller.check_watermark_ready()
+        video_parts = project.get("video_parts", 5) or 5
+        ok, err = controller.check_watermark_ready(video_parts)
         if not ok:
             await query.answer(err, show_alert=True)
             return
         from bot.github_actions import dispatch_parallel
         part = data.split("_")[-1]
         if part == "all":
-            controller.disparar_watermark(pid)
-            await query.edit_message_text("🚀 Watermark disparado para todas as partes!")
+            pending_wm = [i for i in range(1, video_parts + 1) if project.get(f"step_watermark_pt{i}") == "pending"]
+            if pending_wm:
+                controller.disparar_watermark(pid, pending_wm)
+                await query.edit_message_text(f"🚀 Watermark disparado para as partes {pending_wm}!")
+            else:
+                await query.edit_message_text("Nenhuma parte pendente no Watermark.")
         else:
             from bot.database import update_step
             update_step(pid, f"step_watermark_pt{part}", "running")
@@ -1035,16 +1140,21 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         project = get_active_project(chat_id)
         if not project: return
         pid = str(project["id"])
+        video_parts = project.get("video_parts", 5) or 5
         part = data.split("_")[-1]
         p_val = int(part) if part != "all" else None
-        ok, err = controller.check_enhancer_ready(p_val)
+        ok, err = controller.check_enhancer_ready(p_val, video_parts)
         if not ok:
             await query.answer(err, show_alert=True)
             return
         from bot.github_actions import dispatch_parallel
         if part == "all":
-            controller.disparar_enhancer(pid)
-            await query.edit_message_text("🚀 Enhancer disparado para todas as partes!")
+            pending_enh = [i for i in range(0, video_parts + 1) if project.get(f"step_enhancer_pt{i}") == "pending"]
+            if pending_enh:
+                controller.disparar_enhancer(pid, pending_enh)
+                await query.edit_message_text(f"🚀 Enhancer disparado para as partes {pending_enh}!")
+            else:
+                await query.edit_message_text("Nenhuma parte pendente no Enhancer.")
         else:
             from bot.database import update_step
             update_step(pid, f"step_enhancer_pt{part}", "running")
@@ -1055,21 +1165,32 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         project = get_active_project(chat_id)
         if not project: return
         pid = str(project["id"])
+        video_parts = project.get("video_parts", 5) or 5
         part = data.split("_")[-1]
-        p_val = int(part) if part != "all" else None
-        ok, err = controller.check_render_ready(p_val)
-        if not ok:
-            await query.answer(err, show_alert=True)
-            return
+        
         from bot.github_actions import dispatch_parallel
+        from bot.database import update_step
+        
         if part == "all":
-            controller.disparar_render(pid)
-            await query.edit_message_text("🚀 Render disparado para todas as partes!")
+            all_parts = [i for i in range(0, video_parts + 1) if project.get(f"step_render_pt{i}") != "skipped"]
+            if not all_parts:
+                all_parts = list(range(0, video_parts + 1))
+            
+            # Respeita o limite de 7 contas simultâneas
+            running_count = sum(1 for i in range(0, video_parts + 1) if project.get(f"step_render_pt{i}") == "running")
+            slots_avail = max(0, 7 - running_count)
+            if slots_avail == 0:
+                await query.edit_message_text("⚠️ Já existem 7 partes em execução no Render. Aguarde algumas terminarem.")
+                return
+            
+            parts_to_run = all_parts[:slots_avail]
+            controller.disparar_render(pid, parts_to_run)
+            await query.edit_message_text(f"🚀 Render disparado para as partes {parts_to_run}! (Fila de 7 max simultâneas)")
         else:
-            from bot.database import update_step
-            update_step(pid, f"step_render_pt{part}", "running")
-            dispatch_parallel([f"render-pt{part}"], pid)
-            await query.edit_message_text(f"🚀 Render PT {part} disparado!")
+            p_idx = int(part)
+            update_step(pid, f"step_render_pt{p_idx}", "running")
+            dispatch_parallel([f"render-pt{p_idx}"], pid)
+            await query.edit_message_text(f"🚀 Render PT {p_idx} disparado!")
 
     # -------- POSTAGEM --------
     elif data == "menu_postagem":
@@ -1507,8 +1628,180 @@ def main():
 
     controller.on_omni_done = notificar_omni_concluido
 
+    def agendar_publicacao_automatica_postrecap(project_id):
+        """
+        Lê o guia_postagem.json e video_final.mp4 do Drive e registra o agendamento no Post_recap (posts.db).
+        Baixa o vídeo para a pasta física de staging local /home/ubuntu/apps/Post_recap/scheduled_posts/post_<id>/video.mp4.
+        Calcula o próximo slot disponível de 12h ou 18h no horário local de Brasília.
+        """
+        try:
+            proj = get_project(project_id)
+            if not proj:
+                logger.error(f"[POSTRECAP INTEGRATION] Projeto {project_id} não encontrado.")
+                return False
+
+            # 1. Carregar guia_postagem.json do Drive
+            import tempfile
+            guia_path = os.path.join(tempfile.gettempdir(), f"guia_{project_id[:8]}.json")
+            controller.drive.baixar("DRAMA/PIPELINE/FINAL/guia_postagem.json", guia_path)
+            guia = {}
+            if os.path.exists(guia_path):
+                try:
+                    with open(guia_path, "r", encoding="utf-8") as f:
+                        guia = json.load(f)
+                except Exception as e_json:
+                    logger.warning(f"[POSTRECAP INTEGRATION] Falha ao ler guia_postagem.json: {e_json}")
+
+            title_yt = guia.get("titulo_principal") or proj.get("project_name", "Vídeo DramaRecap")
+            desc_yt = guia.get("descricao") or ""
+            tiktok_guia = guia.get("tiktok_guia") or ""
+
+            # Regra: Se der erro no guia ou não houver descrição, postar apenas com as 5 hashtags sem texto
+            DEFAULT_HASHTAGS = "#dramas #doramas #recap #series #fyp"
+            if not desc_yt or not desc_yt.strip():
+                desc_yt = DEFAULT_HASHTAGS
+                tiktok_caption = DEFAULT_HASHTAGS
+                desc_shorts = f"{DEFAULT_HASHTAGS}\n\n#Shorts"
+            else:
+                tiktok_caption = tiktok_guia if tiktok_guia else f"{title_yt}\n\n#dramas #doramas #recap #shorts"
+                desc_shorts = f"{desc_yt}\n\n#Shorts"
+
+            # 2. Conectar ao posts.db do Post_recap
+            post_recap_db_path = "/home/ubuntu/apps/Post_recap/posts.db"
+            if not os.path.exists(post_recap_db_path):
+                logger.error(f"[POSTRECAP INTEGRATION] Banco do Post_recap não localizado em: {post_recap_db_path}")
+                return False
+
+            conn = sqlite3.connect(post_recap_db_path)
+            cursor = conn.cursor()
+
+            from datetime import datetime, timedelta
+            import sqlite3 as _sl3_slot
+            _POSTING_HOURS = [12, 18]
+
+            def _proximo_slot_disponivel():
+                """Retorna o datetime do próximo slot livre de autoposting (12h ou 18h Brasília)."""
+                _db = _sl3_slot.connect(post_recap_db_path)
+                _c = _db.cursor()
+                now = datetime.now()
+                for dias in range(7):
+                    for hora in _POSTING_HOURS:
+                        candidato = now.replace(hour=hora, minute=0, second=0, microsecond=0) + timedelta(days=dias)
+                        if candidato <= now:
+                            continue
+                        slot_str = candidato.strftime("%Y-%m-%d %H:%M:%S")
+                        _c.execute(
+                            "SELECT COUNT(*) FROM scheduled_posts WHERE scheduled_time = ? AND status NOT IN ('completed','failed')",
+                            (slot_str,)
+                        )
+                        count = _c.fetchone()[0]
+                        if count == 0:
+                            _db.close()
+                            return candidato
+                _db.close()
+                return now + timedelta(hours=2)
+
+            scheduled_dt = _proximo_slot_disponivel()
+            now_str = scheduled_dt.strftime("%Y-%m-%d %H:%M:%S")
+            logger.info(f"[POSTRECAP INTEGRATION] Próximo slot de postagem calculado: {now_str}")
+
+            _post_yt, _post_shorts, _post_tiktok, _post_insta = 0, 1, 1, 0
+            try:
+                import sqlite3 as _sqlite3
+                _scrapper_db_path = "/app/scrapper_douyin/data/history.db"
+                if os.path.exists(_scrapper_db_path):
+                    _sc = _sqlite3.connect(_scrapper_db_path)
+                    _sc_cur = _sc.cursor()
+                    _sc_cur.execute("SELECT key, value FROM user_settings WHERE key IN ('default_post_shorts', 'default_post_tiktok', 'default_post_instagram')")
+                    _settings = dict(_sc_cur.fetchall())
+                    _sc.close()
+                    _post_yt      = 0  # Desativado por regra: apenas Shorts no YouTube
+                    _post_shorts  = int(_settings.get("default_post_shorts", 1))
+                    _post_tiktok  = int(_settings.get("default_post_tiktok", 1))
+                    _post_insta   = int(_settings.get("default_post_instagram", 0))
+            except Exception as _e_set:
+                logger.warning(f"[POSTRECAP] Não foi possível ler user_settings do scrapper: {_e_set}")
+
+            yt_tags_val = guia.get("tags_youtube") or guia.get("tags") or ""
+            if isinstance(yt_tags_val, list):
+                yt_tags_val = ", ".join(yt_tags_val)
+
+            cursor.execute("""
+                INSERT INTO scheduled_posts (
+                    video_path, thumbnail_youtube, thumbnail_tiktok,
+                    title_youtube, title_shorts, tiktok_caption, instagram_caption,
+                    post_youtube, post_shorts, post_tiktok, post_instagram,
+                    tiktok_privacy, scheduled_time, status, shorts_description, youtube_tags
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                "", "", "",
+                title_yt, title_yt, tiktok_caption, tiktok_caption,
+                _post_yt, _post_shorts, _post_tiktok, _post_insta,
+                "Public", now_str, "downloading", desc_shorts, yt_tags_val
+            ))
+            post_id = cursor.lastrowid
+            conn.commit()
+
+            # 3. Baixar vídeo final diretamente para o staging isolado local da VPS
+            post_dir = f"/home/ubuntu/apps/Post_recap/scheduled_posts/post_{post_id}"
+            os.makedirs(post_dir, exist_ok=True)
+            local_video_path = os.path.join(post_dir, "video.mp4")
+
+            logger.info(f"[POSTRECAP INTEGRATION] Baixando vídeo final do Drive para {local_video_path}...")
+            caminho_video = "DRAMA/PIPELINE/FINAL/video_final.mp4"
+            success_video = controller.drive.baixar(caminho_video, local_video_path)
+            if not success_video or not os.path.exists(local_video_path):
+                caminho_video_alt = "DRAMA/PIPELINE/FINAL/drama_final.mp4"
+                success_video = controller.drive.baixar(caminho_video_alt, local_video_path)
+
+            if not success_video or not os.path.exists(local_video_path):
+                logger.error(f"[POSTRECAP INTEGRATION] Vídeo final não localizado no Drive!")
+                cursor.execute("UPDATE scheduled_posts SET status = 'failed', error_message = 'Vídeo final não encontrado no Drive' WHERE id = ?", (post_id,))
+                conn.commit()
+                conn.close()
+                return False
+
+            # Salva o guia localmente também
+            try:
+                local_guia_path = os.path.join(post_dir, "guia.json")
+                with open(local_guia_path, "w", encoding="utf-8") as f_g:
+                    json.dump(guia, f_g, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+
+            cursor.execute("""
+                UPDATE scheduled_posts
+                SET video_path = ?, status = 'pending'
+                WHERE id = ?
+            """, (local_video_path, post_id))
+            conn.commit()
+            conn.close()
+
+            # Atualiza episódios em processing_dubbing no history.db do scrapper
+            try:
+                _sc_path = "/app/scrapper_douyin/data/history.db"
+                if os.path.exists(_sc_path):
+                    _sc_conn = sqlite3.connect(_sc_path)
+                    _sc_cur = _sc_conn.cursor()
+                    _sc_cur.execute("UPDATE collection_episodes SET status = 'published' WHERE status = 'processing_dubbing'")
+                    _sc_conn.commit()
+                    _sc_conn.close()
+                    logger.info("[POSTRECAP INTEGRATION] Status dos episódios no scrapper atualizados para 'published'.")
+            except Exception as _e_sc:
+                logger.warning(f"[POSTRECAP INTEGRATION] Falha ao atualizar scrapper DB: {_e_sc}")
+
+            logger.info(f"[POSTRECAP INTEGRATION] Sucesso! Post #{post_id} reservado e agendado para {now_str}.")
+            return True
+
+        except Exception as e:
+            logger.error(f"[POSTRECAP INTEGRATION] Erro ao integrar com Post_recap: {e}")
+            return False
+
+    globals()['agendar_publicacao_automatica_postrecap'] = agendar_publicacao_automatica_postrecap
+
     # Polling periódico via thread (não depende de job_queue extra)
     import threading
+    import sqlite3
 
     def _pipeline_poll_loop():
         """Thread que verifica o banco a cada 30s e avança o pipeline."""
@@ -1517,16 +1810,16 @@ def main():
                 projects = get_running_projects()
                 for proj in projects:
                     pid = str(proj["id"])
-                    # Se antes era running e agora o controller.verificar_e_avancar marcar como completed, podemos checar
                     status_antes = proj.get("status")
                     controller.verificar_e_avancar(pid)
                     
                     from bot.database import get_project
                     proj_depois = get_project(pid)
                     if status_antes != "completed" and proj_depois and proj_depois.get("status") == "completed":
-                        # Projeto acabou de finalizar!
-                        chat_id = proj_depois["chat_id"]
+                        chat_id = proj_depois.get("telegram_chat_id") or proj_depois.get("chat_id")
                         link = controller.drive.get_file_link("DRAMA/PIPELINE/FINAL/drama_final.mp4")
+                        if not link:
+                            link = controller.drive.get_file_link("DRAMA/PIPELINE/FINAL/video_final.mp4")
                         if link:
                             msg = f"✅ *Processo Finalizado!*\nO vídeo final está pronto:\n🔗 [Acessar no Drive]({link})"
                         else:
@@ -1535,6 +1828,14 @@ def main():
                         import requests
                         api_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
                         requests.post(api_url, json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"})
+
+                        # Dispara postagem automática se for modo automático
+                        is_manual = proj_depois.get("manual_mode", False)
+                        if not is_manual:
+                            logger.info(f"[POSTRECAP INTEGRATION] Projeto {pid} finalizado em modo AUTOMÁTICO. Reservando e agendando...")
+                            threading.Thread(target=agendar_publicacao_automatica_postrecap, args=(pid,), daemon=True).start()
+                        else:
+                            logger.info(f"[POSTRECAP INTEGRATION] Projeto {pid} finalizado em modo MANUAL. Postagem automática ignorada.")
             except Exception as e:
                 logger.error(f"Erro no polling do pipeline: {e}")
             time.sleep(30)
